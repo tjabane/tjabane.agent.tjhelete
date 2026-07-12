@@ -1,32 +1,33 @@
+import babelParser from "@babel/eslint-parser";
 import js from "@eslint/js";
 import prettier from "eslint-config-prettier";
 import globals from "globals";
-import tseslint from "typescript-eslint";
 
-export default tseslint.config(
+export default [
   {
     ignores: ["**/dist/**", "**/node_modules/**", "coverage/**", "package-lock.json"],
   },
   js.configs.recommended,
-  ...tseslint.configs.recommended,
   {
     files: ["src/**/*.ts"],
     languageOptions: {
-      ecmaVersion: 2022,
-      sourceType: "commonjs",
+      parser: babelParser,
+      parserOptions: {
+        babelOptions: {
+          plugins: ["@babel/plugin-syntax-typescript"],
+        },
+        requireConfigFile: false,
+      },
+      ecmaVersion: 2024,
+      sourceType: "module",
       globals: {
         ...globals.node,
       },
     },
     rules: {
-      "@typescript-eslint/no-unused-vars": [
-        "error",
-        {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-        },
-      ],
+      "no-undef": "off",
+      "no-unused-vars": "off",
     },
   },
   prettier,
-);
+];

@@ -2,6 +2,10 @@
   "name": "tjabane-agent-tjhelete",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=26.5.0",
+    "npm": ">=11.17.0"
+  },
   "workspaces": [
     "src/*"
   ],
@@ -17,11 +21,13 @@
     "test": "npm run test --workspaces --if-present"
   },
   "devDependencies": {
-    "@eslint/js": "10.0.1",
-    "eslint": "10.7.0",
+    "@babel/eslint-parser": "7.29.7",
+    "@babel/plugin-syntax-typescript": "7.29.7",
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
     "eslint-config-prettier": "10.1.8",
     "globals": "17.7.0",
     "prettier": "3.9.5",
-    "typescript-eslint": "8.63.0"
+    "typescript": "7.0.2"
   }
 }
