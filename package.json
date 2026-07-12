@@ -1,0 +1,15 @@
+{
+  "name": "tjabane-agent-tjhelete",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "src/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "clean": "npm run clean --workspaces --if-present",
+    "dev:api": "npm run dev --workspace @tjabane-agent-tjhelete/api",
+    "start:api": "npm run start --workspace @tjabane-agent-tjhelete/api",
+    "test": "npm run test --workspaces --if-present"
+  }
+}
