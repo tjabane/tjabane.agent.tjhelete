@@ -4,7 +4,6 @@
 
 I want to build a personal finance agent that helps the user understand spending, monitor balances, and track financial goals through natural conversation and proactive updates.
 
-
 ## 2. Problem
 
 It takes a effort to track my daily spending and my financial goals. I dont know how much money I spend yesterday or last week.
@@ -64,14 +63,11 @@ Editable Excalidraw source: [agent_tjhelete_system_context.excalidraw](diagrams/
 
 Rather than integrationg with meta whatapp backed directly going throuugh twilio will be easier and the extra cost will be relatively small at the expected number of users
 
-
 ### Component Diagram
 
 The component diagram expands the Agent Orchestrator container and shows the internal components responsible for routing messages, loading financial data, generating reports, detecting overspending, composing responses, and persisting state.
 
 ![Component Diagram](diagrams/component_diagram.svg)
-
-
 
 ## 9. User Interface
 
@@ -184,3 +180,4 @@ What could go wrong?
 - Should users log in with username or email?
 - How long should users stay logged in?
 - Do we need password reset now or later?
+```
