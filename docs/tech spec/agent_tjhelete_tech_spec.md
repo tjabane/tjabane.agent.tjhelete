@@ -57,7 +57,7 @@ Agent Tjhelete will sit between the user, WhatsApp, Investec account data, and a
 
 Editable Excalidraw source: [agent_tjhelete_system_context.excalidraw](diagrams/agent_tjhelete_system_context.excalidraw)
 
-### Components
+### 8.1 Components
 
 #### Twilio
 
@@ -69,35 +69,7 @@ The component diagram expands the Agent Orchestrator container and shows the int
 
 ![Component Diagram](diagrams/component_diagram.svg)
 
-## 9. User Interface
-
-Describe the screens or components.
-
-Example:
-
-Login page includes:
-
-- Email input
-- Password input
-- Login button
-- Error message area
-- Link to reset password
-
-Optional: Add sketches, screenshots, or wireframes here.
-
 ## 10. Data Model
-
-What data needs to exist?
-
-Example:
-
-User:
-
-- id
-- name
-- email
-- password_hash
-- created_at
 
 ## 11. API Design
 
@@ -132,52 +104,6 @@ Error response:
 }
 
 ## 12. Edge Cases
-
-What unusual situations should be handled?
-
-- User enters an invalid email
-- User leaves password blank
-- User enters the wrong password
-- Server is offline
-- User refreshes the page after logging in
-
 ## 13. Security and Privacy
-
-Mention important safety concerns.
-
-- Passwords must be hashed.
-- Login tokens must be stored securely.
-- Error messages should not reveal whether the email exists.
-
 ## 14. Testing Plan
-
-How will you check that it works?
-
-- Test successful login
-- Test incorrect password
-- Test empty form fields
-- Test logout
-- Test login on mobile
-- Test page refresh after login
-
-## 15. Rollout Plan
-
-How will this be released?
-
-Example:
-First release login to a test environment. After testing, deploy to production. Monitor login errors after release.
-
-## 16. Risks
-
-What could go wrong?
-
-- Users may be locked out because of login bugs.
-- Session tokens may expire incorrectly.
-- Password reset is not included yet.
-
-## 17. Open Questions
-
-- Should users log in with username or email?
-- How long should users stay logged in?
-- Do we need password reset now or later?
-```
+## 15. Costing
