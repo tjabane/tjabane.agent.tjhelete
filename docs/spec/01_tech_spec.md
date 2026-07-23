@@ -98,7 +98,9 @@ flowchart LR
     Tools --> Service
 ```
 
-### 3.1 API Controller
+### 3.1 Webhook API
+
+## 4 Telemetry
 
 ## Sources
 
