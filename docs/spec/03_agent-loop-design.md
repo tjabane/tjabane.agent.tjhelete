@@ -27,7 +27,7 @@ The `ConversationOrchestrator` owns the session lifecycle. The `Agent` owns the 
 
 ## Module ownership
 
-`SessionRepository` belongs to the **database module**. Its concrete implementation is responsible for mapping between the database's session document and the application `Session` type. The conversation/application module defines the repository contract it needs and receives an implementation through dependency injection.
+`SessionRepository` belongs to the **database module**. It extends the shared `IRepository` persistence contract described in [Database Module Design](database-design.md). Its concrete implementation is responsible for mapping between the database's session document and the application `Session` type. The conversation/application module defines the repository contract it needs and receives an implementation through dependency injection.
 
 This keeps database SDKs, queries, and persistence mapping out of the orchestrator and agent loop.
 
@@ -129,10 +129,7 @@ export interface ModelClient {
   createResponse(input: ModelRequest): Promise<ModelTurn>;
 }
 
-export interface SessionRepository {
-  findById(sessionId: string): Promise<Session | null>;
-  save(session: Session): Promise<void>;
-}
+export interface SessionRepository extends IRepository<Session> {}
 
 export abstract class Agent {
   protected readonly history: ConversationHistory;
@@ -180,6 +177,6 @@ DatabaseSessionRepository -> Database SDK
 
 This lets tests replace `ModelClient` and `SessionRepository` with fakes, without changing the agent loop or orchestration logic.
 
-## Deferred tool design
+## Tool registry design
 
-The agent loop reserves a dependency on a future `ToolRegistry`; it does not assume a registry API yet. When it is designed, it should provide the model-visible tool definitions and safely execute only known, validated calls. Tool implementations should remain outside `Agent`, keeping the loop independent of banking, reporting, or other domain operations.
+The agent loop receives a `ToolRegistry` that exposes model-visible tool definitions and safely executes only known tool calls. The detailed design is recorded in [Tool Registry Design](tool-registry-design.md). Tool implementations remain outside `Agent`, keeping the loop independent of banking, reporting, or other domain operations.
