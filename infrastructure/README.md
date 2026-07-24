@@ -1,0 +1,98 @@
+# Azure infrastructure
+
+This directory contains Bicep templates for the Azure MVP infrastructure only.
+It does not contain a GitHub Actions workflow, application deployment package,
+or third-party secret values.
+
+## What is provisioned
+
+- Resource group (when deploying `subscription.bicep`)
+- Linux App Service plan and Node.js web app
+- System-assigned managed identity for the web app
+- Azure Key Vault with RBAC authorization
+- Serverless Azure Cosmos DB for NoSQL with local-key authentication disabled
+- Role assignments allowing the web app to read Key Vault secrets and access
+  Cosmos DB data
+- Log Analytics workspace and workspace-based Application Insights
+- App Service settings for Application Insights and health checks
+
+The web app has HTTPS-only access, HTTP/2, a `/health` health-check path, and
+FTP deployment disabled. The `F1` Free SKU is deliberately selected because
+this is a private, single-user workload. It has no App Service compute charge,
+but it also has no SLA, no Always On, no scale-out, a 60 CPU-minute daily
+quota, 1 GB storage, and no custom domain support. The application therefore
+uses the default `azurewebsites.net` HTTPS hostname and may cold-start after an
+idle period.
+
+## Environment SKU baseline
+
+| Resource             | Development                                   | Production                                    |
+| -------------------- | --------------------------------------------- | --------------------------------------------- |
+| App Service plan     | `F1` / `Free`, one shared worker              | `F1` / `Free`, one shared worker              |
+| App Service web app  | Included in the App Service plan              | Included in the App Service plan              |
+| Scheduled functions  | Planned Flex Consumption (`FC1`)              | Planned Flex Consumption (`FC1`)              |
+| Cosmos DB for NoSQL  | Serverless, usage-based RUs and storage       | Serverless, usage-based RUs and storage       |
+| Key Vault            | `Standard`                                    | `Standard`                                    |
+| Log Analytics        | `PerGB2018` pay-as-you-go; 30-day retention   | `PerGB2018` pay-as-you-go; 30-day retention   |
+| Application Insights | Workspace-based; billed through Log Analytics | Workspace-based; billed through Log Analytics |
+
+Resource groups, managed identities, and role assignments have no SKU. See
+the [infrastructure design](../docs/spec/07_infrastructure-design.md) for the
+component-to-resource mapping, reasons for each resource, stage-specific SKU
+rationale, outstanding capacity decisions, single-user
+[running-cost estimate](../docs/spec/07_infrastructure-design.md#running-cost-estimate),
+pricing assumptions, and first-month review checklist.
+
+Cosmos DB uses the `EnableServerless` account capability. It has no provisioned
+RU/s minimum and is billed for consumed request units and storage. Serverless
+does not use the Cosmos DB provisioned-throughput Free Tier. The database,
+containers, and partition keys still need to be defined, and no throughput
+value should be supplied when creating resources in a serverless account.
+
+## Parameters
+
+Deploy `subscription.bicep` at subscription scope. It creates the target
+resource group and deploys `main.bicep` to it. The development and production
+profiles are `parameters/dev.bicepparam` and `parameters/prod.bicepparam`.
+The templates derive a stable globally unique resource suffix from the
+subscription ID and resource-group name, so operators do not need to maintain
+or pass one manually. A caller may still override `resourceSuffix` when a
+specific existing naming convention must be preserved.
+
+`linuxFxVersion` must be a Node.js runtime supported by App Service in the
+target region. Keep it aligned with the repository's Node engine requirement.
+
+## Secrets and application deployment
+
+The templates intentionally create no third-party secret values. After the
+Key Vault is provisioned, an authorised operator adds the Twilio, Investec,
+and LLM provider secrets. The deployment workflow then adds Key Vault-backed
+App Service settings in the form:
+
+```text
+@Microsoft.KeyVault(SecretUri=https://<vault>.vault.azure.net/secrets/<name>)
+```
+
+The system-assigned identity already has the `Key Vault Secrets User` role.
+Use slot settings for all secret app settings if deployment slots are enabled.
+
+Scheduled reports cannot run reliably as App Service WebJobs on `F1`, because
+the Free tier has no Always On. They will be implemented as timer-triggered
+Azure Functions on Flex Consumption (`FC1`), with zero always-ready instances.
+That resource and its application artifact are not provisioned yet. Flex
+Consumption includes a monthly grant for on-demand executions and execution
+time; the operator must still monitor usage and the associated storage account.
+
+## Deployment example
+
+After authentication and parameter review, the deployment command is:
+
+```powershell
+az deployment sub create `
+  --location southafricanorth `
+  --template-file infrastructure/subscription.bicep `
+  --parameters infrastructure/parameters/dev.bicepparam
+```
+
+Run `az deployment sub what-if` with the same inputs before applying a new or
+production environment.
