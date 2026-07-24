@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SessionRepository } from "../dist/index.js";
+import { InMemoryDatabaseClient } from "./testing-utils/in-memory-database-client.mjs";
 
 test("findById maps a stored session record to an application session", async () => {
-  const databaseClient = new FakeDatabaseClient([
-    {
-      id: "session-1",
-      userId: "user-1",
-      history: [{ role: "user", content: "How much did I spend today?" }],
-    },
-  ]);
+  const databaseClient = new InMemoryDatabaseClient({
+    sessions: [
+      {
+        id: "session-1",
+        userId: "user-1",
+        history: [{ role: "user", content: "How much did I spend today?" }],
+      },
+    ],
+  });
   const repository = new SessionRepository(databaseClient);
 
   const session = await repository.findById("session-1");
@@ -21,25 +24,32 @@ test("findById maps a stored session record to an application session", async ()
   });
 });
 
-test("findByUserId queries the configured collection by userId", async () => {
-  const databaseClient = new FakeDatabaseClient([
-    {
-      id: "session-2",
-      userId: "user-2",
-      history: [{ role: "assistant", content: "You are within budget." }],
-    },
-  ]);
+test("findByUserId reads from the configured collection", async () => {
+  const databaseClient = new InMemoryDatabaseClient({
+    chatSessions: [
+      {
+        id: "session-2",
+        userId: "user-2",
+        history: [{ role: "assistant", content: "You are within budget." }],
+      },
+    ],
+    sessions: [
+      {
+        id: "wrong-session",
+        userId: "user-2",
+        history: [{ role: "assistant", content: "Wrong collection." }],
+      },
+    ],
+  });
   const repository = new SessionRepository(databaseClient, "chatSessions");
 
   const session = await repository.findByUserId("user-2");
 
-  assert.equal(databaseClient.lastFindOne.collectionName, "chatSessions");
-  assert.deepEqual(databaseClient.lastFindOne.query, { userId: "user-2" });
-  assert.equal(session.id, "session-2");
+  assert.equal(session?.id, "session-2");
 });
 
 test("save maps an application session to a database record", async () => {
-  const databaseClient = new FakeDatabaseClient();
+  const databaseClient = new InMemoryDatabaseClient();
   const repository = new SessionRepository(databaseClient);
 
   await repository.save({
@@ -56,66 +66,75 @@ test("save maps an application session to a database record", async () => {
     ],
   });
 
-  assert.deepEqual(databaseClient.savedRecords, [
-    {
-      collectionName: "sessions",
-      record: {
-        id: "session-3",
-        userId: "user-3",
-        history: [
-          { role: "user", content: "List recent transactions" },
-          {
-            role: "tool",
-            content: "{\"count\":3}",
-            name: "list_transactions",
-            toolCallId: "tool-call-1",
-          },
-        ],
+  assert.deepEqual(databaseClient.getRecord("sessions", "session-3"), {
+    id: "session-3",
+    userId: "user-3",
+    history: [
+      { role: "user", content: "List recent transactions" },
+      {
+        role: "tool",
+        content: "{\"count\":3}",
+        name: "list_transactions",
+        toolCallId: "tool-call-1",
       },
-    },
-  ]);
+    ],
+  });
 });
 
-test("delete delegates to the database client", async () => {
-  const databaseClient = new FakeDatabaseClient();
+test("saved records are isolated from caller mutation", async () => {
+  const databaseClient = new InMemoryDatabaseClient();
+  const repository = new SessionRepository(databaseClient);
+  const session = {
+    id: "session-5",
+    userId: "user-5",
+    history: [{ role: "user", content: "Original message" }],
+  };
+
+  await repository.save(session);
+  session.history[0].content = "Mutated message";
+
+  assert.deepEqual(databaseClient.getRecord("sessions", "session-5"), {
+    id: "session-5",
+    userId: "user-5",
+    history: [{ role: "user", content: "Original message" }],
+  });
+});
+
+test("delete removes the record from storage", async () => {
+  const databaseClient = new InMemoryDatabaseClient({
+    sessions: [
+      {
+        id: "session-4",
+        userId: "user-4",
+        history: [],
+      },
+    ],
+  });
   const repository = new SessionRepository(databaseClient);
 
   await repository.delete("session-4");
 
-  assert.deepEqual(databaseClient.deletedRecords, [
-    { collectionName: "sessions", id: "session-4" },
-  ]);
+  assert.equal(databaseClient.getRecord("sessions", "session-4"), null);
 });
 
-class FakeDatabaseClient {
-  records;
-  savedRecords = [];
-  deletedRecords = [];
-  lastFindOne = null;
+test("findById returns an isolated copy of the stored session", async () => {
+  const databaseClient = new InMemoryDatabaseClient({
+    sessions: [
+      {
+        id: "session-6",
+        userId: "user-6",
+        history: [{ role: "user", content: "Stored message" }],
+      },
+    ],
+  });
+  const repository = new SessionRepository(databaseClient);
 
-  constructor(records = []) {
-    this.records = records;
-  }
+  const session = await repository.findById("session-6");
+  session.history[0].content = "Mutated message";
 
-  async findById(collectionName, id) {
-    return this.records.find((record) => record.id === id) ?? null;
-  }
-
-  async findOne(collectionName, query) {
-    this.lastFindOne = { collectionName, query };
-
-    return (
-      this.records.find((record) =>
-        Object.entries(query).every(([key, value]) => record[key] === value),
-      ) ?? null
-    );
-  }
-
-  async save(collectionName, record) {
-    this.savedRecords.push({ collectionName, record });
-  }
-
-  async delete(collectionName, id) {
-    this.deletedRecords.push({ collectionName, id });
-  }
-}
+  assert.deepEqual(databaseClient.getRecord("sessions", "session-6"), {
+    id: "session-6",
+    userId: "user-6",
+    history: [{ role: "user", content: "Stored message" }],
+  });
+});
