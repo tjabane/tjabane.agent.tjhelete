@@ -15,19 +15,18 @@ param resourceGroupName string
 param environment string
 
 @description('Globally unique suffix for globally named resources. Use lowercase letters and numbers only.')
-param resourceSuffix string
+@minLength(4)
+@maxLength(12)
+param resourceSuffix string = take(uniqueString(subscription().id, resourceGroupName), 12)
 
 @description('Linux App Service SKU.')
-param appServiceSkuName string = 'P0v3'
+param appServiceSkuName string = 'F1'
 
 @description('Linux App Service SKU tier.')
-param appServiceSkuTier string = 'PremiumV3'
+param appServiceSkuTier string = 'Free'
 
 @description('The supported Node.js Linux runtime configured on the App Service web app.')
 param linuxFxVersion string
-
-@description('Maximum App Service worker instances.')
-param maximumWorkerCount int = 2
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   name: resourceGroupName
@@ -44,7 +43,6 @@ module infrastructure 'main.bicep' = {
     appServiceSkuName: appServiceSkuName
     appServiceSkuTier: appServiceSkuTier
     linuxFxVersion: linuxFxVersion
-    maximumWorkerCount: maximumWorkerCount
   }
 }
 

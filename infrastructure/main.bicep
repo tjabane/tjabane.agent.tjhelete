@@ -16,18 +16,14 @@ param location string = resourceGroup().location
 @maxLength(12)
 param resourceSuffix string = take(uniqueString(subscription().id, resourceGroup().id), 12)
 
-@description('Linux App Service SKU. Use a production-capable SKU for production.')
-param appServiceSkuName string = 'P0v3'
+@description('Linux App Service SKU. F1 is selected for this private, single-user workload.')
+param appServiceSkuName string = 'F1'
 
 @description('Linux App Service SKU tier.')
-param appServiceSkuTier string = 'PremiumV3'
+param appServiceSkuTier string = 'Free'
 
 @description('The supported Node.js Linux runtime configured on the App Service web app.')
 param linuxFxVersion string
-
-@description('Maximum App Service worker instances. This is a capacity ceiling, not an autoscale rule.')
-@minValue(1)
-param maximumWorkerCount int = 2
 
 var projectName = 'tjabane'
 var namePrefix = '${projectName}-${environment}'
@@ -77,7 +73,9 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
       name: 'standard'
     }
     enableRbacAuthorization: true
-    enablePurgeProtection: environment == 'prod'
+    ...(environment == 'prod' ? {
+      enablePurgeProtection: true
+    } : {})
     enableSoftDelete: true
     publicNetworkAccess: 'Enabled'
     networkAcls: {
@@ -93,6 +91,11 @@ resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
   kind: 'GlobalDocumentDB'
   properties: {
     databaseAccountOfferType: 'Standard'
+    capabilities: [
+      {
+        name: 'EnableServerless'
+      }
+    ]
     locations: [
       {
         locationName: location
@@ -119,7 +122,6 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   kind: 'linux'
   properties: {
     reserved: true
-    maximumElasticWorkerCount: maximumWorkerCount
   }
 }
 
@@ -136,7 +138,7 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = {
     clientAffinityEnabled: false
     siteConfig: {
       linuxFxVersion: linuxFxVersion
-      alwaysOn: true
+      alwaysOn: false
       healthCheckPath: '/health'
       http20Enabled: true
       minTlsVersion: '1.2'
@@ -153,7 +155,6 @@ resource webAppSettings 'Microsoft.Web/sites/config@2024-04-01' = {
     APPLICATIONINSIGHTS_ROLE_NAME: '${projectName}-api'
     NODE_ENV: environment
     WEBSITE_HEALTHCHECK_MAXPINGFAILURES: '3'
-    WEBSITE_SKIP_RUNNING_KUDUAGENT: 'false'
   }
 }
 
@@ -173,7 +174,7 @@ resource cosmosDataContributorAssignment 'Microsoft.DocumentDB/databaseAccounts/
   properties: {
     roleDefinitionId: '${cosmosAccount.id}/sqlRoleDefinitions/${cosmosDataContributorRoleDefinitionId}'
     principalId: webApp.identity.principalId
-    scope: '/'
+    scope: cosmosAccount.id
   }
 }
 
