@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SessionRepository } from "../dist/index.js";
-import { InMemoryDatabaseClient } from "./testing-utils/in-memory-database-client.mjs";
+import { InMemoryDatabaseClient } from "./utils/in-memory-database-client.mjs";
 
 test("findById maps a stored session record to an application session", async () => {
   const databaseClient = new InMemoryDatabaseClient({

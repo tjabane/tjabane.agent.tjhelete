@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { URL } from "node:url";
 import { InvestecBankApiClient } from "../dist/index.js";
+import { FakeHttpClient } from "./utils/fake-http-client.mjs";
 
 test("Investec client requests and maps posted transactions", async () => {
   const httpClient = new FakeHttpClient(createResponse());
@@ -140,19 +141,6 @@ test("Investec client rejects transactions belonging to another account", async 
     /does not match the requested account/,
   );
 });
-
-class FakeHttpClient {
-  requests = [];
-
-  constructor(response) {
-    this.response = response;
-  }
-
-  async request(options) {
-    this.requests.push(options);
-    return this.response;
-  }
-}
 
 function createResponse() {
   return {

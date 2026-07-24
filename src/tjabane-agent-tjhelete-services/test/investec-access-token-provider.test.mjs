@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { URL } from "node:url";
 import { DefaultInvestecAccessTokenProvider } from "../dist/index.js";
+import { FakeHttpClient } from "./utils/fake-http-client.mjs";
 
 test("Investec token provider sends the documented client-credentials request and caches the token", async () => {
   let now = 1_000;
@@ -127,23 +128,3 @@ test("Investec token provider validates the token response at runtime", async ()
     },
   );
 });
-
-class FakeHttpClient {
-  requests = [];
-
-  constructor(responses) {
-    this.responses = responses;
-  }
-
-  async request(options) {
-    this.requests.push(options);
-
-    const response = this.responses.shift();
-
-    if (response === undefined) {
-      throw new Error("No fake HTTP response configured.");
-    }
-
-    return response;
-  }
-}
