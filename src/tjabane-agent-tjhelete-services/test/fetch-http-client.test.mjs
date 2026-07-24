@@ -1,4 +1,4 @@
-/* global AbortController, DOMException, Response */
+/* global AbortController, DOMException, ReadableStream, Response */
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -74,6 +74,56 @@ test("FetchHttpClient throws HttpStatusError without exposing the response body"
       assert.equal(error.status, 429);
       assert.equal(error.retryAfter, "15");
       assert.doesNotMatch(error.message, /do-not-expose/);
+      return true;
+    },
+  );
+});
+
+test("FetchHttpClient releases unsuccessful response bodies", async () => {
+  let responseBodyCancelled = false;
+  const client = new FetchHttpClient(async () => {
+    return new Response(
+      new ReadableStream({
+        cancel() {
+          responseBodyCancelled = true;
+        },
+      }),
+      { status: 503 },
+    );
+  });
+
+  await assert.rejects(
+    () =>
+      client.request({
+        method: "GET",
+        url: new URL("https://example.test/unavailable"),
+      }),
+    HttpStatusError,
+  );
+  assert.equal(responseBodyCancelled, true);
+});
+
+test("FetchHttpClient preserves the status error when response cleanup fails", async () => {
+  const client = new FetchHttpClient(async () => {
+    return new Response(
+      new ReadableStream({
+        cancel() {
+          throw new Error("cleanup failed");
+        },
+      }),
+      { status: 503 },
+    );
+  });
+
+  await assert.rejects(
+    () =>
+      client.request({
+        method: "GET",
+        url: new URL("https://example.test/unavailable"),
+      }),
+    (error) => {
+      assert.ok(error instanceof HttpStatusError);
+      assert.equal(error.status, 503);
       return true;
     },
   );

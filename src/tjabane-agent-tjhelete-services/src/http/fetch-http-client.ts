@@ -44,6 +44,7 @@ export class FetchHttpClient implements HttpClient {
       const headers = Object.fromEntries(response.headers.entries());
 
       if (!response.ok) {
+        await this.releaseResponseBody(response);
         throw new HttpStatusError(
           response.status,
           response.headers.get("retry-after") ?? undefined,
@@ -106,6 +107,14 @@ export class FetchHttpClient implements HttpClient {
       return JSON.parse(text) as unknown;
     } catch (error) {
       throw new HttpBodyParseError({ cause: error });
+    }
+  }
+
+  private async releaseResponseBody(response: Response): Promise<void> {
+    try {
+      await response.body?.cancel();
+    } catch {
+      // Cleanup is best effort and must not hide the HTTP status error.
     }
   }
 }
