@@ -1,6 +1,4 @@
-export interface IEntity<TId = string> {
-  id: TId;
-}
+import type { IEntity } from "../entities/entity.js";
 
 export interface IRepository<TEntity extends IEntity<TId>, TId = string> {
   findById(id: TId): Promise<TEntity | null>;

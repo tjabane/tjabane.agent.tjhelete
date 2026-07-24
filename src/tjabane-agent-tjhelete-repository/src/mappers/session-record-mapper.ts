@@ -2,9 +2,9 @@ import type {
   ConversationHistory,
   ConversationMessage,
   ConversationMessageRole,
-} from "../conversation-history.js";
-import type { DatabaseRecord } from "../database-client.js";
-import type { Session } from "../session.js";
+} from "../entities/conversation-history.js";
+import type { DatabaseRecord } from "../contracts/database-client.js";
+import type { Session } from "../entities/session.js";
 
 export interface SessionMessageRecord {
   readonly role: ConversationMessageRole;

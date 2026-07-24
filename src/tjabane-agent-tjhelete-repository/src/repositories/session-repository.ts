@@ -1,10 +1,11 @@
-import type { DatabaseClient } from "./database-client.js";
+import type { DatabaseClient } from "../contracts/database-client.js";
 import {
   mapSession,
   mapSessionRecord,
   type SessionRecord,
-} from "./mappers/session-record-mapper.js";
-import type { ISessionRepository, Session } from "./session.js";
+} from "../mappers/session-record-mapper.js";
+import type { ISessionRepository } from "../contracts/session-repository.js";
+import type { Session } from "../entities/session.js";
 
 export class SessionRepository implements ISessionRepository {
   public constructor(
