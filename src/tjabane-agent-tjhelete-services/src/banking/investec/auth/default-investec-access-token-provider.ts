@@ -1,6 +1,6 @@
-import type { HttpClient } from "../../http/http-client.interface.js";
+import type { HttpClient } from "../../../http/http-client.interface.js";
 import type { InvestecAccessTokenProvider } from "./investec-access-token-provider.interface.js";
-import { ProviderResponseValidationError } from "./provider-response-validation-error.js";
+import { ProviderResponseValidationError } from "../errors/provider-response-validation-error.js";
 
 interface CachedAccessToken {
   readonly value: string;

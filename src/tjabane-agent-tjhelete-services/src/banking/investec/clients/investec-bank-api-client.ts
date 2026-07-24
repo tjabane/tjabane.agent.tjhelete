@@ -1,14 +1,14 @@
-import type { BankApiClient } from "../bank-api-client.interface.js";
-import type { Transaction } from "../transaction.interface.js";
-import type { TransactionQuery } from "../transaction-query.interface.js";
-import type { HttpClient } from "../../http/http-client.interface.js";
-import type { InvestecAccessTokenProvider } from "./investec-access-token-provider.interface.js";
+import type { BankApiClient } from "../../bank-api-client.interface.js";
+import type { Transaction } from "../../transaction.interface.js";
+import type { TransactionQuery } from "../../transaction-query.interface.js";
+import type { HttpClient } from "../../../http/http-client.interface.js";
+import type { InvestecAccessTokenProvider } from "../auth/investec-access-token-provider.interface.js";
 import {
   decodeInvestecTransactionResponse,
   isIsoCalendarDate,
-} from "./investec-transaction.decoder.js";
-import { mapInvestecTransaction } from "./investec-transaction-mapper.js";
-import { ProviderResponseValidationError } from "./provider-response-validation-error.js";
+} from "../decoders/investec-transaction.decoder.js";
+import { ProviderResponseValidationError } from "../errors/provider-response-validation-error.js";
+import { mapInvestecTransaction } from "../mappers/investec-transaction-mapper.js";
 
 export class InvestecBankApiClient implements BankApiClient {
   public constructor(

@@ -1,8 +1,8 @@
 import type {
   InvestecPostedTransactionDto,
   InvestecTransactionsResponseDto,
-} from "./investec-transaction.dto.js";
-import { ProviderResponseValidationError } from "./provider-response-validation-error.js";
+} from "../dtos/investec-transaction.dto.js";
+import { ProviderResponseValidationError } from "../errors/provider-response-validation-error.js";
 
 type UnknownRecord = Record<string, unknown>;
 

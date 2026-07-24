@@ -109,11 +109,19 @@ tjabane-agent-tjhelete-services/
     |   |-- transaction.interface.ts
     |   |-- transaction-query.interface.ts
     |   `-- investec/
-    |       |-- investec-access-token-provider.interface.ts
-    |       |-- investec-bank-api-client.ts
-    |       |-- investec-transaction.dto.ts
-    |       |-- investec-transaction.decoder.ts
-    |       `-- investec-transaction-mapper.ts
+    |       |-- auth/
+    |       |   |-- default-investec-access-token-provider.ts
+    |       |   `-- investec-access-token-provider.interface.ts
+    |       |-- clients/
+    |       |   `-- investec-bank-api-client.ts
+    |       |-- decoders/
+    |       |   `-- investec-transaction.decoder.ts
+    |       |-- dtos/
+    |       |   `-- investec-transaction.dto.ts
+    |       |-- errors/
+    |       |   `-- provider-response-validation-error.ts
+    |       `-- mappers/
+    |           `-- investec-transaction-mapper.ts
     |-- http/
     |   |-- fetch-http-client.ts
     |   |-- http-client.interface.ts
@@ -121,10 +129,10 @@ tjabane-agent-tjhelete-services/
     `-- index.ts
 ```
 
-Files that define interfaces use the `.interface.ts` suffix. Provider DTO,
-decoder, and mapper files use role-specific suffixes. Provider files live
-directly in the Investec root while the provider remains small. A technical-type
-subfolder should be introduced only when it materially improves navigation.
+Files that define interfaces use the `.interface.ts` suffix. Investec files are
+grouped by technical role because authentication, client execution, decoding,
+DTOs, errors, and mapping now form distinct provider concerns. These folders
+remain inside `banking/investec`, preserving the provider boundary.
 
 Speculative capabilities such as email are not included before a concrete
 application requirement and provider contract exist.
@@ -526,8 +534,8 @@ error bodies remain private to the services package. The package root
   `TransactionQuery`, and `Transaction`.
 - Provider adapters implement the service-owned capability contract.
 - Files that define interfaces use the `.interface.ts` suffix.
-- Provider-specific files live at the provider root while the provider is
-  small.
+- Organise provider-specific files into role-based folders inside the provider
+  boundary.
 - External response bodies remain `unknown` until runtime validation succeeds.
 - Keep decoding and mapping as separate boundary operations.
 - Always send explicit Investec `fromDate` and `toDate` filters.

@@ -1,5 +1,5 @@
-import type { Transaction } from "../transaction.interface.js";
-import type { InvestecPostedTransactionDto } from "./investec-transaction.dto.js";
+import type { Transaction } from "../../transaction.interface.js";
+import type { InvestecPostedTransactionDto } from "../dtos/investec-transaction.dto.js";
 
 export function mapInvestecTransaction(dto: InvestecPostedTransactionDto): Transaction {
   return {
