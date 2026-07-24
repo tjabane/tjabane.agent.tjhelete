@@ -13,5 +13,8 @@
   "devDependencies": {
     "rimraf": "^6.0.1",
     "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "@azure/cosmos": "^4.10.0"
   }
 }
