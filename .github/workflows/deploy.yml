@@ -1,0 +1,291 @@
+name: Build and deploy
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy
+        required: true
+        type: choice
+        options:
+          - development
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test and package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Remove development dependencies
+        run: npm prune --omit=dev
+
+      - name: Create App Service package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          package_dir="${RUNNER_TEMP}/app-package"
+          mkdir -p "${package_dir}/src"
+
+          cp package.json package-lock.json "${package_dir}/"
+          cp -a node_modules "${package_dir}/"
+
+          for workspace in src/*; do
+            workspace_name="$(basename "${workspace}")"
+            mkdir -p "${package_dir}/src/${workspace_name}"
+            cp "${workspace}/package.json" "${package_dir}/src/${workspace_name}/"
+          done
+
+          cp -a src/tjabane-agent-tjhelete-api/dist \
+            "${package_dir}/src/tjabane-agent-tjhelete-api/"
+
+          (
+            cd "${package_dir}"
+            zip -q -r "${RUNNER_TEMP}/app.zip" .
+          )
+
+      - name: Upload deployment package
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-package
+          path: ${{ runner.temp }}/app.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy-development:
+    name: Deploy development
+    needs: build
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'development')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: development
+      url: ${{ steps.infrastructure.outputs.app_url }}
+    concurrency:
+      group: deploy-development
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out infrastructure
+        uses: actions/checkout@v4
+
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: app-package
+          path: ${{ runner.temp }}/package
+
+      - name: Validate Azure configuration
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          : "${AZURE_CLIENT_ID:?Set AZURE_CLIENT_ID in the development GitHub environment}"
+          : "${AZURE_TENANT_ID:?Set AZURE_TENANT_ID in the development GitHub environment}"
+          : "${AZURE_SUBSCRIPTION_ID:?Set AZURE_SUBSCRIPTION_ID in the development GitHub environment}"
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Preview infrastructure changes
+        run: >-
+          az deployment sub what-if
+          --location southafricanorth
+          --template-file infrastructure/subscription.bicep
+          --parameters infrastructure/parameters/dev.bicepparam
+          --no-pretty-print
+
+      - name: Deploy infrastructure
+        id: infrastructure
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          deployment_output="$(
+            az deployment sub create \
+              --name "tjabane-dev-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+              --location southafricanorth \
+              --template-file infrastructure/subscription.bicep \
+              --parameters infrastructure/parameters/dev.bicepparam \
+              --output json
+          )"
+
+          app_name="$(jq -r '.properties.outputs.webAppName.value' <<< "${deployment_output}")"
+          host_name="$(jq -r '.properties.outputs.webAppDefaultHostName.value' <<< "${deployment_output}")"
+
+          test -n "${app_name}" && test "${app_name}" != "null"
+          test -n "${host_name}" && test "${host_name}" != "null"
+
+          echo "app_name=${app_name}" >> "${GITHUB_OUTPUT}"
+          echo "app_url=https://${host_name}" >> "${GITHUB_OUTPUT}"
+
+      - name: Deploy application
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ steps.infrastructure.outputs.app_name }}
+          package: ${{ runner.temp }}/package/app.zip
+
+      - name: Verify health endpoint
+        shell: bash
+        env:
+          APP_URL: ${{ steps.infrastructure.outputs.app_url }}
+        run: |
+          for attempt in {1..18}; do
+            if curl --fail --silent --show-error \
+              --max-time 10 "${APP_URL}/health"; then
+              exit 0
+            fi
+
+            echo "Health check attempt ${attempt} failed; retrying in 10 seconds."
+            sleep 10
+          done
+
+          echo "::error::Health check failed after deployment."
+          exit 1
+
+  deploy-production:
+    name: Deploy production
+    needs: build
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: ${{ steps.infrastructure.outputs.app_url }}
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out infrastructure
+        uses: actions/checkout@v4
+
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: app-package
+          path: ${{ runner.temp }}/package
+
+      - name: Validate Azure configuration
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          : "${AZURE_CLIENT_ID:?Set AZURE_CLIENT_ID in the production GitHub environment}"
+          : "${AZURE_TENANT_ID:?Set AZURE_TENANT_ID in the production GitHub environment}"
+          : "${AZURE_SUBSCRIPTION_ID:?Set AZURE_SUBSCRIPTION_ID in the production GitHub environment}"
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Preview infrastructure changes
+        run: >-
+          az deployment sub what-if
+          --location southafricanorth
+          --template-file infrastructure/subscription.bicep
+          --parameters infrastructure/parameters/prod.bicepparam
+          --no-pretty-print
+
+      - name: Deploy infrastructure
+        id: infrastructure
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          deployment_output="$(
+            az deployment sub create \
+              --name "tjabane-prod-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+              --location southafricanorth \
+              --template-file infrastructure/subscription.bicep \
+              --parameters infrastructure/parameters/prod.bicepparam \
+              --output json
+          )"
+
+          app_name="$(jq -r '.properties.outputs.webAppName.value' <<< "${deployment_output}")"
+          host_name="$(jq -r '.properties.outputs.webAppDefaultHostName.value' <<< "${deployment_output}")"
+
+          test -n "${app_name}" && test "${app_name}" != "null"
+          test -n "${host_name}" && test "${host_name}" != "null"
+
+          echo "app_name=${app_name}" >> "${GITHUB_OUTPUT}"
+          echo "app_url=https://${host_name}" >> "${GITHUB_OUTPUT}"
+
+      - name: Deploy application
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ steps.infrastructure.outputs.app_name }}
+          package: ${{ runner.temp }}/package/app.zip
+
+      - name: Verify health endpoint
+        shell: bash
+        env:
+          APP_URL: ${{ steps.infrastructure.outputs.app_url }}
+        run: |
+          for attempt in {1..18}; do
+            if curl --fail --silent --show-error \
+              --max-time 10 "${APP_URL}/health"; then
+              exit 0
+            fi
+
+            echo "Health check attempt ${attempt} failed; retrying in 10 seconds."
+            sleep 10
+          done
+
+          echo "::error::Health check failed after deployment."
+          exit 1

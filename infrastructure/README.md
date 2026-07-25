@@ -96,3 +96,38 @@ az deployment sub create `
 
 Run `az deployment sub what-if` with the same inputs before applying a new or
 production environment.
+
+## GitHub Actions deployment
+
+The workflow in `.github/workflows/deploy.yml` runs linting, tests, and the
+TypeScript build before creating one immutable application artifact. Pull
+requests to `main` run validation only. A push to `main` deploys to the
+`development` GitHub environment. A `v*` tag deploys to the `production` GitHub
+environment. Either environment can also be selected in a manual
+`workflow_dispatch` run.
+
+Create GitHub environments named `development` and `production`. Define these
+environment variables in each environment:
+
+| Variable                | Purpose                                       |
+| ----------------------- | --------------------------------------------- |
+| `AZURE_CLIENT_ID`       | Client ID of the environment's Azure identity |
+| `AZURE_TENANT_ID`       | Microsoft Entra tenant ID                     |
+| `AZURE_SUBSCRIPTION_ID` | Target Azure subscription ID                  |
+
+Configure a federated identity credential for each GitHub environment rather
+than storing an Azure client secret. Its subject is:
+
+```text
+repo:<owner>/<repository>:environment:<environment>
+```
+
+The deployment identity needs permission to create subscription deployments,
+resource groups, resources, and the role assignments declared by the Bicep
+templates. In practice, use `Contributor` plus `User Access Administrator` at
+the target subscription scope, or an equivalent custom least-privilege role.
+Use a separate identity and subscription where possible for production.
+
+Protect the `production` GitHub environment with required reviewers and restrict
+its deployment branches/tags to the release policy. The workflow deliberately
+does not cancel an in-progress production deployment.
