@@ -2,6 +2,7 @@ import type {
   ConversationHistory,
   ConversationMessage,
   ConversationMessageRole,
+  ConversationToolCall,
 } from "../entities/conversation-history.js";
 import type { DatabaseRecord } from "../contracts/database-client.js";
 import type { Session } from "../entities/session.js";
@@ -11,6 +12,7 @@ export interface SessionMessageRecord {
   readonly content: string;
   readonly name?: string;
   readonly toolCallId?: string;
+  readonly toolCalls?: readonly ConversationToolCall[];
 }
 
 export interface SessionRecord extends DatabaseRecord {
@@ -41,21 +43,21 @@ function mapConversationHistoryRecord(
     role: message.role,
     content: message.content,
     ...(message.name === undefined ? {} : { name: message.name }),
-    ...(message.toolCallId === undefined
+    ...(message.toolCallId === undefined ? {} : { toolCallId: message.toolCallId }),
+    ...(message.toolCalls === undefined
       ? {}
-      : { toolCallId: message.toolCallId }),
+      : { toolCalls: message.toolCalls.map((toolCall) => ({ ...toolCall })) }),
   }));
 }
 
-function mapConversationMessage(
-  message: ConversationMessage,
-): SessionMessageRecord {
+function mapConversationMessage(message: ConversationMessage): SessionMessageRecord {
   return {
     role: message.role,
     content: message.content,
     ...(message.name === undefined ? {} : { name: message.name }),
-    ...(message.toolCallId === undefined
+    ...(message.toolCallId === undefined ? {} : { toolCallId: message.toolCallId }),
+    ...(message.toolCalls === undefined
       ? {}
-      : { toolCallId: message.toolCallId }),
+      : { toolCalls: message.toolCalls.map((toolCall) => ({ ...toolCall })) }),
   };
 }

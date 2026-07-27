@@ -59,7 +59,7 @@ test("save maps an application session to a database record", async () => {
       { role: "user", content: "List recent transactions" },
       {
         role: "tool",
-        content: "{\"count\":3}",
+        content: '{"count":3}',
         name: "list_transactions",
         toolCallId: "tool-call-1",
       },
@@ -73,12 +73,45 @@ test("save maps an application session to a database record", async () => {
       { role: "user", content: "List recent transactions" },
       {
         role: "tool",
-        content: "{\"count\":3}",
+        content: '{"count":3}',
         name: "list_transactions",
         toolCallId: "tool-call-1",
       },
     ],
   });
+});
+
+test("save and reload preserve assistant tool calls", async () => {
+  const databaseClient = new InMemoryDatabaseClient();
+  const repository = new SessionRepository(databaseClient);
+  const session = {
+    id: "session-tool-call",
+    userId: "user-tool-call",
+    history: [
+      {
+        role: "assistant",
+        content: "",
+        toolCalls: [
+          {
+            id: "call-1",
+            name: "get_spending_summary",
+            arguments: { period: "today" },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: '{"total":120}',
+        name: "get_spending_summary",
+        toolCallId: "call-1",
+      },
+    ],
+  };
+
+  await repository.save(session);
+  const reloadedSession = await repository.findById(session.id);
+
+  assert.deepEqual(reloadedSession, session);
 });
 
 test("saved records are isolated from caller mutation", async () => {
