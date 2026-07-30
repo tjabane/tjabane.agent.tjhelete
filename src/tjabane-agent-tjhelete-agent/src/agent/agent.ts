@@ -1,13 +1,8 @@
-import type {
-  AgentConfig,
-  ConversationHistory,
-  ConversationMessage,
-  ModelClient,
-  ModelToolCall,
-  ToolExecutionContext,
-  ToolRegistry,
-} from "./contracts.js";
-import { ToolTurnLimitExceededError } from "./errors.js";
+import type { AgentConfig } from "../contracts/agent.js";
+import type { ConversationHistory, ConversationMessage } from "../contracts/conversation.js";
+import type { ModelClient, ModelToolCall } from "../contracts/model-client.js";
+import type { ToolExecutionContext, ToolRegistry } from "../contracts/tools.js";
+import { ToolTurnLimitExceededError } from "./tool-turn-limit-exceeded-error.js";
 
 export class Agent {
   protected readonly history: ConversationMessage[];

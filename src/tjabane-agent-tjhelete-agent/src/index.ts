@@ -1,9 +1,9 @@
-export { Agent, DefaultAgent } from "./agent.js";
-export { type AgentFactory, DefaultAgentFactory } from "./agent-factory.js";
+export { Agent, DefaultAgent } from "./agent/agent.js";
+export { type AgentFactory, DefaultAgentFactory } from "./agent/agent-factory.js";
 export {
   ConversationOrchestrator,
   type ConversationOrchestratorOptions,
-} from "./conversation-orchestrator.js";
+} from "./orchestration/conversation-orchestrator.js";
 export type {
   AgentConfig,
   AgentSession,
@@ -19,5 +19,6 @@ export type {
   ToolExecutionContext,
   ToolRegistry,
   ToolResult,
-} from "./contracts.js";
-export { SessionNotFoundError, ToolTurnLimitExceededError } from "./errors.js";
+} from "./contracts/index.js";
+export { ToolTurnLimitExceededError } from "./agent/tool-turn-limit-exceeded-error.js";
+export { SessionNotFoundError } from "./orchestration/session-not-found-error.js";

@@ -1,11 +1,8 @@
 import { Agent, DefaultAgent } from "./agent.js";
-import type {
-  AgentConfig,
-  ConversationHistory,
-  ModelClient,
-  ToolExecutionContext,
-  ToolRegistry,
-} from "./contracts.js";
+import type { AgentConfig } from "../contracts/agent.js";
+import type { ConversationHistory } from "../contracts/conversation.js";
+import type { ModelClient } from "../contracts/model-client.js";
+import type { ToolExecutionContext, ToolRegistry } from "../contracts/tools.js";
 
 export interface AgentFactory {
   create(history: ConversationHistory, executionContext: ToolExecutionContext): Agent;

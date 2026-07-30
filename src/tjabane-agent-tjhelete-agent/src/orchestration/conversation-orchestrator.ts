@@ -1,6 +1,6 @@
-import type { AgentFactory } from "./agent-factory.js";
-import type { SessionRepository } from "./contracts.js";
-import { SessionNotFoundError } from "./errors.js";
+import type { AgentFactory } from "../agent/agent-factory.js";
+import type { SessionRepository } from "../contracts/session.js";
+import { SessionNotFoundError } from "./session-not-found-error.js";
 
 export interface ConversationOrchestratorOptions {
   readonly timezone: string;
