@@ -78,7 +78,7 @@ Aggregated financial results must be complete. If any authorised account cannot 
 
 ## Tool result
 
-A tool returns compact, model-safe structured data. The model client is responsible for serialising it in the provider's required tool-result format.
+A tool returns compact, model-safe structured data. `Agent` owns its provider-neutral serialisation: it applies `JSON.stringify` once and appends the resulting canonical JSON string to conversation history as the tool message's `content`. That same representation is persisted by the repository. `ModelClient` does not serialise `ToolResult`; it translates the existing conversation message into the provider-specific tool-result envelope and forwards its string content in the form required by the provider SDK.
 
 ```ts
 export type ToolResult =
@@ -286,6 +286,7 @@ Transaction and balance tools do not accept provider account identifiers or acco
 - Concrete tools validate their own arguments and own their tool-specific failure translation.
 - Shared tool contracts and the generic registry belong in the agent module. Concrete tool definitions and implementations belong in the tools module.
 - Tool results are compact, structured, and safe for the model to see.
+- `Agent` serialises each `ToolResult` once as canonical JSON in conversation history; `ModelClient` owns only the provider-specific message-envelope conversion.
 - Identity, session, time, and timezone come from trusted execution context, never from tool arguments.
 - The application serves one configured user and uses one deployment-scoped Investec connection; multi-user credential and account mapping are outside the current scope.
 - Provider account identifiers come only from Investec's authorised accounts endpoint and are never accepted from model-controlled arguments.
@@ -298,4 +299,4 @@ Transaction and balance tools do not accept provider account identifiers or acco
 - The JSON Schema validation library and precise `JsonSchema` type.
 - Exact application contracts for budgets, goals, categorisation, and notifications.
 - Whether tool execution is wrapped in telemetry/auditing middleware.
-- The provider-specific conversion performed by `ModelClient`.
+- The precise provider-specific message-envelope conversion performed by `ModelClient`.
