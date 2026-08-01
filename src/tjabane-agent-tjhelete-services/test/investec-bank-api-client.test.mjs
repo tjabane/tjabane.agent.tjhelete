@@ -4,6 +4,75 @@ import { URL } from "node:url";
 import { InvestecBankApiClient } from "../dist/index.js";
 import { FakeHttpClient } from "./utils/fake-http-client.mjs";
 
+test("Investec client requests and maps every authorized account", async () => {
+  const httpClient = new FakeHttpClient(createAccountsResponse());
+  const client = new InvestecBankApiClient(
+    httpClient,
+    { getAccessToken: async () => "bank-token" },
+    new URL("https://openapi.test"),
+    7_500,
+  );
+
+  const accounts = await client.getAccounts();
+
+  assert.deepEqual(httpClient.requests, [
+    {
+      method: "GET",
+      url: new URL("https://openapi.test/za/pb/v1/accounts"),
+      headers: {
+        Accept: "application/json",
+        Authorization: "Bearer bank-token",
+      },
+      timeoutMs: 7_500,
+    },
+  ]);
+  assert.deepEqual(accounts, [
+    {
+      id: "account-1",
+      referenceName: "Daily account",
+      productName: "Private Bank Account",
+    },
+    {
+      id: "account-2",
+      referenceName: "Savings account",
+      productName: "Cash Management Account",
+    },
+  ]);
+  assert.equal("accountNumber" in accounts[0], false);
+  assert.equal("profileId" in accounts[0], false);
+});
+
+test("Investec client validates provider account fields", async () => {
+  const response = createAccountsResponse();
+  response.body.data.accounts[0].kycCompliant = "yes";
+  const client = new InvestecBankApiClient(
+    new FakeHttpClient(response),
+    { getAccessToken: async () => "bank-token" },
+    new URL("https://openapi.test"),
+  );
+
+  await assert.rejects(
+    () => client.getAccounts(),
+    (error) => {
+      assert.equal(error.name, "ProviderResponseValidationError");
+      assert.match(error.message, /kycCompliant/);
+      return true;
+    },
+  );
+});
+
+test("Investec client fails rather than returning an incomplete account page", async () => {
+  const response = createAccountsResponse();
+  response.body.meta.totalPages = 2;
+  const client = new InvestecBankApiClient(
+    new FakeHttpClient(response),
+    { getAccessToken: async () => "bank-token" },
+    new URL("https://openapi.test"),
+  );
+
+  await assert.rejects(() => client.getAccounts(), /totalPages is greater than one/);
+});
+
 test("Investec client requests and maps posted transactions", async () => {
   const httpClient = new FakeHttpClient(createResponse());
   const accessTokens = {
@@ -168,6 +237,45 @@ function createResponse() {
       },
       links: {
         self: "https://openapi.test/za/pb/v1/accounts/account-1/transactions",
+      },
+      meta: {
+        totalPages: 1,
+      },
+    },
+    headers: {},
+  };
+}
+
+function createAccountsResponse() {
+  return {
+    status: 200,
+    body: {
+      data: {
+        accounts: [
+          {
+            accountId: "account-1",
+            accountNumber: "10000000001",
+            accountName: "Primary account holder",
+            referenceName: "Daily account",
+            productName: "Private Bank Account",
+            kycCompliant: true,
+            profileId: "profile-1",
+            profileName: "Personal profile",
+          },
+          {
+            accountId: "account-2",
+            accountNumber: "10000000002",
+            accountName: "Primary account holder",
+            referenceName: "Savings account",
+            productName: "Cash Management Account",
+            kycCompliant: true,
+            profileId: "profile-1",
+            profileName: "Personal profile",
+          },
+        ],
+      },
+      links: {
+        self: "https://openapi.test/za/pb/v1/accounts",
       },
       meta: {
         totalPages: 1,

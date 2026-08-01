@@ -5,8 +5,9 @@ provider-neutral service contracts and infrastructure adapters for external
 systems, beginning with the Investec Private Bank API. It deliberately describes
 design only; it does not implement the client.
 
-The initial banking scope is limited to retrieving posted transactions. Account
-balances, pending transactions, payments, transfers, and other Investec
+The initial banking scope is limited to discovering the accounts authorised by
+the deployment's Investec API key and retrieving their posted transactions.
+Account balances, pending transactions, payments, transfers, and other Investec
 capabilities are outside this first design.
 
 ## Design intent
@@ -19,9 +20,10 @@ The services module owns the details of communicating with external HTTP APIs:
 4. Translate valid provider DTOs into provider-neutral service data.
 5. Return provider-neutral results or explicit failures.
 
-The rest of the application works with `BankApiClient`, `TransactionQuery`, and
-`Transaction`. It does not know how Investec names fields, structures response
-envelopes, authenticates requests, or constructs endpoint URLs.
+The rest of the application works with `BankApiClient`, `BankAccount`,
+`TransactionQuery`, and `Transaction`. It does not know how Investec names
+fields, structures response envelopes, authenticates requests, or constructs
+endpoint URLs.
 
 ## Ownership and dependency direction
 
@@ -37,7 +39,7 @@ infrastructure used by service adapters and also belongs to the services module.
 
 ```text
 Services module
-  -> owns BankApiClient, TransactionQuery, and Transaction
+  -> owns BankApiClient, BankAccount, TransactionQuery, and Transaction
   -> owns InvestecBankApiClient, Investec DTOs, validation, and mapping
   -> owns HttpClient and FetchHttpClient
 
@@ -86,7 +88,8 @@ separate domain decision.
 
 | Entity                              | Owner             | Responsibility                                                                    |
 | ----------------------------------- | ----------------- | --------------------------------------------------------------------------------- |
-| `BankApiClient`                     | Services/Banking  | Defines the provider-neutral posted-transaction capability.                       |
+| `BankApiClient`                     | Services/Banking  | Defines provider-neutral account-discovery and posted-transaction capabilities.   |
+| `BankAccount`                       | Services/Banking  | Represents one authorised account without exposing sensitive account details.     |
 | `TransactionQuery`                  | Services/Banking  | Defines the required calendar-date range and optional transaction-type filter.    |
 | `Transaction`                       | Services/Banking  | Represents one validated, provider-neutral posted transaction.                    |
 | `HttpClient`                        | Services/HTTP     | Defines the HTTP capability required by service adapters.                         |
@@ -105,6 +108,7 @@ owns them. Provider implementation details are nested beneath that root:
 tjabane-agent-tjhelete-services/
 `-- src/
     |-- banking/
+    |   |-- bank-account.interface.ts
     |   |-- bank-api-client.interface.ts
     |   |-- transaction.interface.ts
     |   |-- transaction-query.interface.ts
@@ -115,12 +119,15 @@ tjabane-agent-tjhelete-services/
     |       |-- clients/
     |       |   `-- investec-bank-api-client.ts
     |       |-- decoders/
+    |       |   |-- investec-account.decoder.ts
     |       |   `-- investec-transaction.decoder.ts
     |       |-- dtos/
+    |       |   |-- investec-account.dto.ts
     |       |   `-- investec-transaction.dto.ts
     |       |-- errors/
     |       |   `-- provider-response-validation-error.ts
     |       `-- mappers/
+    |           |-- investec-account-mapper.ts
     |           `-- investec-transaction-mapper.ts
     |-- http/
     |   |-- fetch-http-client.ts
@@ -141,7 +148,14 @@ application requirement and provider contract exist.
 
 ```ts
 export interface BankApiClient {
+  getAccounts(): Promise<readonly BankAccount[]>;
   getTransactions(accountId: string, query: TransactionQuery): Promise<readonly Transaction[]>;
+}
+
+export interface BankAccount {
+  readonly id: string;
+  readonly referenceName: string;
+  readonly productName: string;
 }
 
 export interface TransactionQuery {
@@ -164,6 +178,14 @@ export interface Transaction {
 
 ### Contract invariants
 
+- `getAccounts()` returns every account authorised by the deployment's scoped
+  Investec API key.
+- `BankAccount.id` is the provider account identifier used internally for
+  downstream balance and transaction requests. It is not a model-facing
+  selector.
+- Full account numbers, account-holder names, profile identifiers, and KYC
+  fields are validated at the provider boundary but are not included in the
+  provider-neutral `BankAccount` result.
 - `accountId` is non-empty and no longer than 30 characters.
 - `fromDate` and `toDate` are real calendar dates in strict `YYYY-MM-DD` format.
 - `fromDate` is not after `toDate`.
@@ -437,7 +459,14 @@ behavior establishes one.
 classDiagram
     class BankApiClient {
         <<interface>>
+        +getAccounts() Promise~readonly BankAccount[]~
         +getTransactions(accountId: string, query: TransactionQuery) Promise~readonly Transaction[]~
+    }
+
+    class BankAccount {
+        +id: string
+        +referenceName: string
+        +productName: string
     }
 
     class TransactionQuery {
@@ -461,6 +490,7 @@ classDiagram
         -httpClient: HttpClient
         -accessTokens: InvestecAccessTokenProvider
         -baseUrl: URL
+        +getAccounts() Promise~readonly BankAccount[]~
         +getTransactions(accountId: string, query: TransactionQuery) Promise~readonly Transaction[]~
     }
 
@@ -481,6 +511,7 @@ classDiagram
     class InvestecTransactionMapper
 
     InvestecBankApiClient ..|> BankApiClient : implements
+    BankApiClient --> BankAccount : returns
     FetchHttpClient ..|> HttpClient : implements
     BankApiClient --> TransactionQuery : accepts
     BankApiClient --> Transaction : returns
@@ -521,8 +552,8 @@ sequenceDiagram
 
 ## Public and private exports
 
-The services module publicly exports `BankApiClient`, `TransactionQuery`,
-`Transaction`, `InvestecBankApiClient`, `FetchHttpClient`, and only the
+The services module publicly exports `BankApiClient`, `BankAccount`,
+`TransactionQuery`, `Transaction`, `InvestecBankApiClient`, `FetchHttpClient`, and only the
 configuration or authentication types required by the composition root.
 Application and tool modules consume the provider-neutral banking contracts
 through the services package public API.
@@ -536,8 +567,10 @@ error bodies remain private to the services package. The package root
 - Provider-neutral banking contracts live at the root of the services module's
   `banking` capability.
 - The agent module does not own banking contracts.
-- Keep the first public banking contract to `BankApiClient`,
+- Keep the first public banking contract to `BankApiClient`, `BankAccount`,
   `TransactionQuery`, and `Transaction`.
+- Discover the complete provider-authorised account set through
+  `BankApiClient.getAccounts()` before making account-specific requests.
 - Provider adapters implement the service-owned capability contract.
 - Files that define interfaces use the `.interface.ts` suffix.
 - Organise provider-specific files into role-based folders inside the provider
@@ -563,7 +596,7 @@ error bodies remain private to the services package. The package root
 
 ## Deferred decisions
 
-- Account and balance contracts, including the source of transaction currency.
+- Balance contracts, including the source of transaction currency.
 - Decimal or integer-minor-unit money representation after currency is known.
 - Pending-transaction modeling and whether it should use a discriminated union.
 - Verification that Investec `uuid` values remain stable across repeated
