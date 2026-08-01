@@ -5,7 +5,6 @@ import {
   DefaultAgent,
   DefaultAgentFactory,
   SessionNotFoundError,
-  ToolTurnLimitExceededError,
 } from "../dist/index.js";
 
 const config = { model: "test-model", maxToolTurns: 2 };
@@ -52,6 +51,28 @@ test("agent appends the user message and returns a final model reply", async () 
   assert.deepEqual(existingHistory, [{ role: "assistant", content: "How can I help?" }]);
 });
 
+test("agent leaves configuration validation to its dependencies", async () => {
+  const configurationError = new Error("Invalid model configuration.");
+  const modelClient = {
+    async createResponse(request) {
+      assert.equal(request.model, "");
+      throw configurationError;
+    },
+  };
+  const agent = new DefaultAgent(
+    [],
+    modelClient,
+    createToolRegistry(),
+    { model: "", maxToolTurns: config.maxToolTurns },
+    executionContext,
+  );
+
+  await assert.rejects(
+    () => agent.sendMessage("Hello"),
+    (error) => error === configurationError,
+  );
+});
+
 test("agent executes requested tools and continues until the model replies", async () => {
   const requests = [];
   const modelClient = {
@@ -83,7 +104,7 @@ test("agent executes requested tools and continues until the model replies", asy
     ],
     async (name, context, arguments_) => {
       executions.push({ name, context, arguments_ });
-      return { data: { total: 120, currency: "ZAR" } };
+      return { ok: true, data: { total: 120, currency: "ZAR" } };
     },
   );
   const agent = new DefaultAgent([], modelClient, toolRegistry, config, executionContext);
@@ -111,35 +132,117 @@ test("agent executes requested tools and continues until the model replies", asy
     },
     {
       role: "tool",
-      content: '{"total":120,"currency":"ZAR"}',
+      content: '{"ok":true,"data":{"total":120,"currency":"ZAR"}}',
       name: "get_spending_summary",
       toolCallId: "call-1",
     },
   ]);
 });
 
-test("agent stops when the model exceeds the configured tool-turn limit", async () => {
+test("agent gives the model a failed tool result when tool execution throws", async () => {
+  const requests = [];
+  const modelClient = {
+    async createResponse(request) {
+      requests.push(request);
+      if (requests.length === 1) {
+        return {
+          text: "",
+          toolCalls: [{ id: "call-1", name: "get_balances", arguments: {} }],
+        };
+      }
+      return { text: "I couldn't retrieve your balances right now.", toolCalls: [] };
+    },
+  };
+  const toolRegistry = createToolRegistry(
+    [{ name: "get_balances", description: "Get balances.", inputSchema: {} }],
+    async () => {
+      throw new Error("Provider credentials were rejected.");
+    },
+  );
+  const agent = new DefaultAgent([], modelClient, toolRegistry, config, executionContext);
+
+  const reply = await agent.sendMessage("What is my balance?");
+
+  assert.equal(reply, "I couldn't retrieve your balances right now.");
+  assert.deepEqual(JSON.parse(requests[1].history.at(-1).content), {
+    ok: false,
+    error: {
+      code: "tool_execution_failed",
+      message: "The tool could not be executed because of an unexpected internal failure.",
+      retryable: true,
+    },
+  });
+  assert.doesNotMatch(requests[1].history.at(-1).content, /credentials/i);
+});
+
+test("agent requests a final reply without tools after reaching the tool-turn limit", async () => {
   let requestCount = 0;
   const modelClient = {
-    async createResponse() {
+    async createResponse(request) {
       requestCount += 1;
+      if (request.tools.length === 0) {
+        return {
+          text: "I couldn't complete the remaining checks within this request.",
+          toolCalls: [],
+        };
+      }
       return {
         text: "",
         toolCalls: [{ id: `call-${requestCount}`, name: "repeat", arguments: {} }],
       };
     },
   };
+  let executionCount = 0;
   const agent = new DefaultAgent(
     [],
     modelClient,
-    createToolRegistry([{ name: "repeat", description: "Repeat.", inputSchema: {} }], async () => ({
-      data: { ok: true },
-    })),
+    createToolRegistry([{ name: "repeat", description: "Repeat.", inputSchema: {} }], async () => {
+      executionCount += 1;
+      return { ok: true, data: { repeated: true } };
+    }),
     { ...config, maxToolTurns: 1 },
     executionContext,
   );
-  await assert.rejects(() => agent.sendMessage("Keep going"), ToolTurnLimitExceededError);
-  assert.equal(requestCount, 2);
+
+  const reply = await agent.sendMessage("Keep going");
+
+  assert.equal(reply, "I couldn't complete the remaining checks within this request.");
+  assert.equal(requestCount, 3);
+  assert.equal(executionCount, 1);
+  assert.deepEqual(JSON.parse(agent.getHistory().at(-2).content), {
+    ok: false,
+    error: {
+      code: "tool_turn_limit_reached",
+      message:
+        "No more tools can be executed for this response because the tool-use limit was reached.",
+      retryable: false,
+    },
+  });
+});
+
+test("agent uses a deterministic reply when tool-limit finalisation fails", async () => {
+  let requestCount = 0;
+  const modelClient = {
+    async createResponse() {
+      requestCount += 1;
+      if (requestCount === 1) {
+        return { text: "", toolCalls: [{ id: "call-1", name: "repeat", arguments: {} }] };
+      }
+      throw new Error("Model provider unavailable.");
+    },
+  };
+  const agent = new DefaultAgent(
+    [],
+    modelClient,
+    createToolRegistry([{ name: "repeat", description: "Repeat.", inputSchema: {} }]),
+    { ...config, maxToolTurns: 0 },
+    executionContext,
+  );
+
+  const reply = await agent.sendMessage("Keep going");
+
+  assert.match(reply, /tool-use limit/i);
+  assert.equal(agent.getHistory().at(-1).content, reply);
 });
 
 test("orchestrator loads a session, runs the agent, and saves its history", async () => {

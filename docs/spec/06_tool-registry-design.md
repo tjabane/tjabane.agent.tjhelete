@@ -64,12 +64,22 @@ This prevents a model request from selecting another user's account or changing 
 A tool returns compact, model-safe structured data. The model client is responsible for serialising it in the provider's required tool-result format.
 
 ```ts
-export interface ToolResult {
-  data: Record<string, unknown>;
-}
+export type ToolResult =
+  | {
+      ok: true;
+      data: Record<string, unknown>;
+    }
+  | {
+      ok: false;
+      error: {
+        code: string;
+        message: string;
+        retryable: boolean;
+      };
+    };
 ```
 
-Tool results must contain only information needed to answer the user. They must not include credentials, raw HTTP responses, account numbers, or internal implementation errors.
+Tool results must contain only information needed to answer the user. They must not include credentials, raw HTTP responses, account numbers, or internal implementation errors. Expected failures use the `ok: false` variant so the model can explain the problem or choose another tool without terminating the conversation.
 
 ## Registry behaviour
 

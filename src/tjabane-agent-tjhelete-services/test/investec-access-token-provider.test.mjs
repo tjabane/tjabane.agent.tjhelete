@@ -53,6 +53,7 @@ test("Investec token provider sends the documented client-credentials request an
     },
     body: "grant_type=client_credentials",
     timeoutMs: 5_000,
+    retryable: true,
   });
 
   now = 10_000;

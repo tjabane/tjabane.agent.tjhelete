@@ -1,8 +1,15 @@
 import type { AgentConfig } from "../contracts/agent.js";
 import type { ConversationHistory, ConversationMessage } from "../contracts/conversation.js";
 import type { ModelClient, ModelToolCall } from "../contracts/model-client.js";
-import type { ToolExecutionContext, ToolRegistry } from "../contracts/tools.js";
-import { ToolTurnLimitExceededError } from "./tool-turn-limit-exceeded-error.js";
+import type {
+  FailedToolResult,
+  ToolExecutionContext,
+  ToolRegistry,
+  ToolResult,
+} from "../contracts/tools.js";
+
+const toolLimitFallbackReply =
+  "I couldn't complete the request because I reached the tool-use limit. Please try again or narrow your request.";
 
 export class Agent {
   protected readonly history: ConversationMessage[];
@@ -14,7 +21,6 @@ export class Agent {
     protected readonly config: AgentConfig,
     protected readonly executionContext: ToolExecutionContext,
   ) {
-    validateConfig(config);
     this.history = copyHistory(existingHistory);
   }
 
@@ -36,7 +42,8 @@ export class Agent {
       }
 
       if (completedToolTurns >= this.config.maxToolTurns) {
-        throw new ToolTurnLimitExceededError(this.config.maxToolTurns);
+        this.appendToolLimitResults(turn.toolCalls);
+        return this.createFinalReplyWithoutTools();
       }
 
       await this.executeTools(turn.toolCalls);
@@ -54,18 +61,68 @@ export class Agent {
 
   private async executeTools(toolCalls: readonly ModelToolCall[]): Promise<void> {
     for (const toolCall of toolCalls) {
-      const result = await this.toolRegistry.execute(
-        toolCall.name,
-        this.executionContext,
-        toolCall.arguments,
-      );
+      let result: ToolResult;
+
+      try {
+        result = await this.toolRegistry.execute(
+          toolCall.name,
+          this.executionContext,
+          toolCall.arguments,
+        );
+      } catch {
+        result = {
+          ok: false,
+          error: {
+            code: "tool_execution_failed",
+            message: "The tool could not be executed because of an unexpected internal failure.",
+            retryable: true,
+          },
+        };
+      }
 
       this.history.push({
         role: "tool",
-        content: JSON.stringify(result.data),
+        content: JSON.stringify(result),
         name: toolCall.name,
         toolCallId: toolCall.id,
       });
+    }
+  }
+
+  private appendToolLimitResults(toolCalls: readonly ModelToolCall[]): void {
+    const result: FailedToolResult = {
+      ok: false,
+      error: {
+        code: "tool_turn_limit_reached",
+        message:
+          "No more tools can be executed for this response because the tool-use limit was reached.",
+        retryable: false,
+      },
+    };
+
+    for (const toolCall of toolCalls) {
+      this.history.push({
+        role: "tool",
+        content: JSON.stringify(result),
+        name: toolCall.name,
+        toolCallId: toolCall.id,
+      });
+    }
+  }
+
+  private async createFinalReplyWithoutTools(): Promise<string> {
+    try {
+      const turn = await this.modelClient.createResponse({
+        model: this.config.model,
+        history: copyHistory(this.history),
+        tools: [],
+      });
+      const reply = turn.text.trim().length === 0 ? toolLimitFallbackReply : turn.text;
+      this.appendModelTurn(reply, []);
+      return reply;
+    } catch {
+      this.appendModelTurn(toolLimitFallbackReply, []);
+      return toolLimitFallbackReply;
     }
   }
 
@@ -83,14 +140,4 @@ function copyHistory(history: ConversationHistory): ConversationMessage[] {
       ? {}
       : { toolCalls: message.toolCalls.map((toolCall) => ({ ...toolCall })) }),
   }));
-}
-
-function validateConfig(config: AgentConfig): void {
-  if (config.model.trim().length === 0) {
-    throw new Error("AgentConfig.model must not be empty.");
-  }
-
-  if (!Number.isInteger(config.maxToolTurns) || config.maxToolTurns < 0) {
-    throw new Error("AgentConfig.maxToolTurns must be a non-negative integer.");
-  }
 }

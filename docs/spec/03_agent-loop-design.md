@@ -8,11 +8,13 @@ One inbound user message is handled as a unit of work:
 
 1. Load the existing session and its conversation history.
 2. Construct an `Agent` with that history and its model dependencies.
-3. Let the agent run its model/tool loop until it produces a final reply.
+3. Let the agent run its model/tool loop until it produces a final reply. If the
+   tool-turn budget is exhausted, give the model a controlled failure result and
+   request one final response with tools disabled.
 4. Save the agent's updated history.
 5. Return the reply to the caller.
 
-The `ConversationOrchestrator` owns the session lifecycle. The `Agent` owns the in-memory conversation and the loop. A `ModelClient` hides provider-specific API details from the agent.
+The `ConversationOrchestrator` owns the session lifecycle. The `Agent` owns the in-memory conversation and the loop. A `ModelClient` hides provider-specific API details from the agent. Expected tool failures are conversation outcomes rather than exceptions, allowing the model to explain the failure or choose another available tool.
 
 ## Entity responsibilities and relationships
 

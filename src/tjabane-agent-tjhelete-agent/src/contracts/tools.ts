@@ -11,9 +11,21 @@ export interface ToolExecutionContext {
   readonly now: Date;
 }
 
-export interface ToolResult {
+export interface SuccessfulToolResult {
+  readonly ok: true;
   readonly data: Readonly<Record<string, unknown>>;
 }
+
+export interface FailedToolResult {
+  readonly ok: false;
+  readonly error: {
+    readonly code: string;
+    readonly message: string;
+    readonly retryable: boolean;
+  };
+}
+
+export type ToolResult = SuccessfulToolResult | FailedToolResult;
 
 export interface ToolRegistry {
   getDefinitions(): readonly ToolDefinition[];

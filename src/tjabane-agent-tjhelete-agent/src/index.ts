@@ -10,15 +10,16 @@ export type {
   ConversationHistory,
   ConversationMessage,
   ConversationMessageRole,
+  FailedToolResult,
   ModelClient,
   ModelRequest,
   ModelToolCall,
   ModelTurn,
   SessionRepository,
+  SuccessfulToolResult,
   ToolDefinition,
   ToolExecutionContext,
   ToolRegistry,
   ToolResult,
 } from "./contracts/index.js";
-export { ToolTurnLimitExceededError } from "./agent/tool-turn-limit-exceeded-error.js";
 export { SessionNotFoundError } from "./orchestration/session-not-found-error.js";

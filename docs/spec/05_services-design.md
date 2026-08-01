@@ -222,6 +222,7 @@ export interface HttpRequestOptions {
   readonly body?: string;
   readonly timeoutMs?: number;
   readonly signal?: AbortSignal;
+  readonly retryable?: boolean;
 }
 
 export interface HttpResponse {
@@ -247,7 +248,12 @@ More HTTP methods are added only when an implemented adapter requires them.
 - It distinguishes caller cancellation from a timeout.
 - It throws `HttpBodyParseError` when a response declared as JSON cannot be
   parsed. A successful empty response has a `null` body.
-- It does not retry automatically.
+- `RetryingHttpClient` can wrap it with a bounded retry policy. It retries
+  transient network failures, timeouts, and HTTP 408, 429, 500, 502, 503, and
+  504 responses with exponential backoff and honours `Retry-After` within its
+  configured delay ceiling.
+- `GET` requests are retryable by default. `POST` requests are retried only when
+  explicitly marked `retryable`, preventing accidental repetition of writes.
 - A 429 response is an `HttpStatusError`. The current Investec documentation
   confirms 429 responses but does not publish a rate threshold or guarantee a
   `Retry-After` header.
@@ -314,7 +320,7 @@ export interface InvestecAccessTokenProvider {
 The API composition root supplies configuration and wiring:
 
 ```ts
-const httpClient = new FetchHttpClient();
+const httpClient = new RetryingHttpClient(new FetchHttpClient());
 const accessTokens = new DefaultInvestecAccessTokenProvider(
   httpClient,
   config.investecTokenUrl,

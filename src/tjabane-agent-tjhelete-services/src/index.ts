@@ -7,6 +7,11 @@ export { InvestecBankApiClient } from "./banking/investec/clients/investec-bank-
 export { FetchHttpClient } from "./http/fetch-http-client.js";
 export type { HttpClient, HttpRequestOptions, HttpResponse } from "./http/http-client.interface.js";
 export {
+  RetryingHttpClient,
+  type HttpRetryPolicyOptions,
+  type RetryDelay,
+} from "./http/retrying-http-client.js";
+export {
   HttpBodyParseError,
   HttpError,
   HttpNetworkError,
