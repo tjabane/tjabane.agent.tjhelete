@@ -1,10 +1,14 @@
-import express from "express";
+import express, { type RequestHandler } from "express";
 import helmet from "helmet";
 import { healthRouter } from "./routes/health-route";
 import { pingRouter } from "./routes/ping-route";
-import { twilioWebhookRouter } from "./routes/twilio-webhook-route";
+import { createTwilioWebhookRouter } from "./routes/twilio-webhook-route";
 
-export function createApp() {
+export interface AppDependencies {
+  readonly twilioWebhookHandler: RequestHandler;
+}
+
+export function createApp(dependencies: AppDependencies) {
   const app = express();
 
   app.use(helmet());
@@ -13,7 +17,7 @@ export function createApp() {
 
   app.use("/health", healthRouter);
   app.use("/ping", pingRouter);
-  app.use("/webhooks/twilio", twilioWebhookRouter);
+  app.use("/webhooks/twilio", createTwilioWebhookRouter(dependencies.twilioWebhookHandler));
 
   return app;
 }

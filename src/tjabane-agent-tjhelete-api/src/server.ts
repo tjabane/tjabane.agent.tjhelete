@@ -1,10 +1,11 @@
 import "dotenv/config";
-import { createApp } from "./app";
+import { createApplication } from "./composition/create-application";
 import { loadAppConfig } from "./config/app-config";
 
-const config = loadAppConfig();
-const app = createApp();
+const application = createApplication(loadAppConfig());
 
-app.listen(config.port, () => {
-  console.log(`API listening on port ${config.port} in ${config.nodeEnv} mode`);
+application.app.listen(application.config.port, () => {
+  console.log(
+    `API listening on port ${application.config.port} in ${application.config.nodeEnv} mode`,
+  );
 });

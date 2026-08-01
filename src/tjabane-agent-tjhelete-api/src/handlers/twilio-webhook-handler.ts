@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import type { InboundMessageService } from "../contracts/inbound-message.js";
 
 type TwilioMessageWebhookBody = {
   Body?: string;
@@ -7,34 +8,19 @@ type TwilioMessageWebhookBody = {
   MessageSid?: string;
 };
 
-export function twilioWebhookHandler(
-  request: Request<Record<string, never>, string, TwilioMessageWebhookBody>,
-  response: Response,
-): void {
-  const incomingMessage = {
-    body: request.body.Body ?? "",
-    from: request.body.From ?? "",
-    to: request.body.To ?? "",
-    messageSid: request.body.MessageSid ?? "",
+export function createTwilioWebhookHandler(inboundMessages: InboundMessageService) {
+  return async function twilioWebhookHandler(
+    request: Request<Record<string, string>, string, TwilioMessageWebhookBody>,
+    response: Response,
+  ): Promise<void> {
+    const reply = await inboundMessages.handle({
+      channel: "whatsapp",
+      text: request.body.Body ?? "",
+      externalSenderId: request.body.From ?? "",
+      externalRecipientId: request.body.To ?? "",
+      providerMessageId: request.body.MessageSid ?? "",
+    });
+
+    response.status(200).json({ message: reply });
   };
-
-  console.log("Received Twilio webhook", incomingMessage);
-
-  response
-    .status(200)
-    .type("text/xml")
-    .send(createMessagingResponse("Agent Tjhelete received your message."));
-}
-
-function createMessagingResponse(message: string): string {
-  return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(message)}</Message></Response>`;
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
 }
