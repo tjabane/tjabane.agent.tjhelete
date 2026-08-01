@@ -27,6 +27,11 @@ export interface FailedToolResult {
 
 export type ToolResult = SuccessfulToolResult | FailedToolResult;
 
+export interface AgentTool {
+  readonly definition: ToolDefinition;
+  execute(context: ToolExecutionContext, arguments_: unknown): Promise<ToolResult>;
+}
+
 export interface ToolRegistry {
   getDefinitions(): readonly ToolDefinition[];
   execute(

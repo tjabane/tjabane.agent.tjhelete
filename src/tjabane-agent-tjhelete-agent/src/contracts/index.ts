@@ -7,6 +7,7 @@ export type {
 export type { ModelClient, ModelRequest, ModelToolCall, ModelTurn } from "./model-client.js";
 export type { AgentSession, SessionRepository } from "./session.js";
 export type {
+  AgentTool,
   FailedToolResult,
   SuccessfulToolResult,
   ToolDefinition,

@@ -80,12 +80,7 @@ export class Agent {
         };
       }
 
-      this.history.push({
-        role: "tool",
-        content: JSON.stringify(result),
-        name: toolCall.name,
-        toolCallId: toolCall.id,
-      });
+      this.appendToolResult(toolCall, result);
     }
   }
 
@@ -101,13 +96,17 @@ export class Agent {
     };
 
     for (const toolCall of toolCalls) {
-      this.history.push({
-        role: "tool",
-        content: JSON.stringify(result),
-        name: toolCall.name,
-        toolCallId: toolCall.id,
-      });
+      this.appendToolResult(toolCall, result);
     }
+  }
+
+  private appendToolResult(toolCall: ModelToolCall, result: ToolResult): void {
+    this.history.push({
+      role: "tool",
+      content: JSON.stringify(result),
+      name: toolCall.name,
+      toolCallId: toolCall.id,
+    });
   }
 
   private async createFinalReplyWithoutTools(): Promise<string> {
