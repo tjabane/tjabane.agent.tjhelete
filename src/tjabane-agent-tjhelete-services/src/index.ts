@@ -3,6 +3,14 @@ export type { BankAccount } from "./banking/bank-account.interface.js";
 export type { BankApiClient } from "./banking/bank-api-client.interface.js";
 export type { Transaction } from "./banking/transaction.interface.js";
 export type { TransactionQuery } from "./banking/transaction-query.interface.js";
+export {
+  ModelProviderError,
+  ModelProviderResponseValidationError,
+} from "./ai/model-provider-error.js";
+export {
+  OpenAiResponsesModelClient,
+  type OpenAiResponsesModelClientOptions,
+} from "./ai/openai-responses-model-client.js";
 export { DefaultInvestecAccessTokenProvider } from "./banking/investec/auth/default-investec-access-token-provider.js";
 export type { InvestecAccessTokenProvider } from "./banking/investec/auth/investec-access-token-provider.interface.js";
 export { InvestecBankApiClient } from "./banking/investec/clients/investec-bank-api-client.js";

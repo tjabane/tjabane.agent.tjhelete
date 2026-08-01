@@ -10,7 +10,7 @@
     "src/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
+    "build": "npm run build --workspace @tjabane-agent-tjhelete/agent && npm run build --workspace @tjabane-agent-tjhelete/repository && npm run build --workspace @tjabane-agent-tjhelete/services && npm run build --workspace @tjabane-agent-tjhelete/tools && npm run build --workspace @tjabane-agent-tjhelete/api",
     "clean": "npm run clean --workspaces --if-present",
     "dev:api": "npm run dev --workspace @tjabane-agent-tjhelete/api",
     "format": "prettier . --write",
@@ -19,7 +19,7 @@
     "lint:fix": "eslint . --fix",
     "start": "npm run start:api",
     "start:api": "npm run start --workspace @tjabane-agent-tjhelete/api",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test --workspace @tjabane-agent-tjhelete/agent && npm run test --workspace @tjabane-agent-tjhelete/repository && npm run test --workspace @tjabane-agent-tjhelete/services && npm run test --workspace @tjabane-agent-tjhelete/tools && npm run test --workspace @tjabane-agent-tjhelete/api",
     "test:coverage": "npm run test:coverage --workspaces --if-present"
   },
   "devDependencies": {

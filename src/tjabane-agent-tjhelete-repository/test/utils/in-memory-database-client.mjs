@@ -18,9 +18,7 @@ export class InMemoryDatabaseClient {
 
   async findOne(collectionName, query) {
     for (const record of this.getCollection(collectionName).values()) {
-      const matchesQuery = Object.entries(query).every(
-        ([key, value]) => record[key] === value,
-      );
+      const matchesQuery = Object.entries(query).every(([key, value]) => record[key] === value);
 
       if (matchesQuery) {
         return cloneRecord(record);
@@ -30,8 +28,26 @@ export class InMemoryDatabaseClient {
     return null;
   }
 
-  async save(collectionName, record) {
-    this.getCollection(collectionName).set(record.id, cloneRecord(record));
+  async create(collectionName, record) {
+    const collection = this.getCollection(collectionName);
+
+    if (collection.has(record.id)) {
+      return false;
+    }
+
+    collection.set(record.id, cloneRecord(record));
+    return true;
+  }
+
+  async save(collectionName, record, expectedVersion) {
+    const collection = this.getCollection(collectionName);
+    const existing = collection.get(record.id);
+
+    if (expectedVersion !== undefined && existing?.version !== expectedVersion) {
+      throw new Error("The record was changed by another operation.");
+    }
+
+    collection.set(record.id, cloneRecord(record));
   }
 
   async delete(collectionName, id) {

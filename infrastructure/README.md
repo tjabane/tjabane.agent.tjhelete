@@ -10,11 +10,13 @@ or third-party secret values.
 - Linux App Service plan and Node.js web app
 - System-assigned managed identity for the web app
 - Azure Key Vault with RBAC authorization
-- Serverless Azure Cosmos DB for NoSQL with local-key authentication disabled
+- Serverless Azure Cosmos DB for NoSQL with `sessions` and `inboundMessages`
+  containers and local-key authentication disabled
 - Role assignments allowing the web app to read Key Vault secrets and access
   Cosmos DB data
 - Log Analytics workspace and workspace-based Application Insights
-- App Service settings for Application Insights and health checks
+- App Service settings for Application Insights, health checks, provider
+  configuration, and Key Vault-backed secrets
 
 The web app has HTTPS-only access, HTTP/2, a `/health` health-check path, and
 FTP deployment disabled. The `F1` Free SKU is deliberately selected because
@@ -45,9 +47,10 @@ pricing assumptions, and first-month review checklist.
 
 Cosmos DB uses the `EnableServerless` account capability. It has no provisioned
 RU/s minimum and is billed for consumed request units and storage. Serverless
-does not use the Cosmos DB provisioned-throughput Free Tier. The database,
-containers, and partition keys still need to be defined, and no throughput
-value should be supplied when creating resources in a serverless account.
+does not use the Cosmos DB provisioned-throughput Free Tier. The `sessions` and
+`inboundMessages` containers use `/id` partition keys. Inbound idempotency
+records have a one-day default TTL. No throughput value is supplied because
+the account is serverless.
 
 ## Parameters
 
@@ -65,9 +68,20 @@ target region. Keep it aligned with the repository's Node engine requirement.
 ## Secrets and application deployment
 
 The templates intentionally create no third-party secret values. After the
-Key Vault is provisioned, an authorised operator adds the Twilio, Investec,
-and LLM provider secrets. The deployment workflow then adds Key Vault-backed
-App Service settings in the form:
+Key Vault is provisioned, an authorised operator must add these secrets:
+
+- `twilio-auth-token`
+- `twilio-allowed-whatsapp-sender`
+- `app-internal-user-id`
+- `openai-api-key`
+- `investec-base-url`
+- `investec-token-url`
+- `investec-client-id`
+- `investec-client-secret`
+- `investec-api-key`
+
+The web app consumes them through Key Vault-backed App Service settings in the
+form:
 
 ```text
 @Microsoft.KeyVault(SecretUri=https://<vault>.vault.azure.net/secrets/<name>)

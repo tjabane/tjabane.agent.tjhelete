@@ -1,9 +1,12 @@
 import { Router, type RequestHandler } from "express";
 
-export function createTwilioWebhookRouter(handler: RequestHandler): Router {
+export function createTwilioWebhookRouter(
+  handler: RequestHandler,
+  verifySignature: RequestHandler,
+): Router {
   const router = Router();
 
-  router.post("/", handler);
+  router.post("/", verifySignature, handler);
 
   return router;
 }

@@ -14,25 +14,25 @@ export class SessionRepository implements ISessionRepository {
   ) {}
 
   public async findById(id: string): Promise<Session | null> {
-    const record = await this.databaseClient.findById<SessionRecord>(
-      this.collectionName,
-      id,
-    );
+    const record = await this.databaseClient.findById<SessionRecord>(this.collectionName, id);
 
     return record === null ? null : mapSessionRecord(record);
   }
 
   public async findByUserId(userId: string): Promise<Session | null> {
-    const record = await this.databaseClient.findOne<SessionRecord>(
-      this.collectionName,
-      { userId },
-    );
+    const record = await this.databaseClient.findOne<SessionRecord>(this.collectionName, {
+      userId,
+    });
 
     return record === null ? null : mapSessionRecord(record);
   }
 
+  public async create(session: Session): Promise<boolean> {
+    return this.databaseClient.create(this.collectionName, mapSession(session));
+  }
+
   public async save(session: Session): Promise<void> {
-    await this.databaseClient.save(this.collectionName, mapSession(session));
+    await this.databaseClient.save(this.collectionName, mapSession(session), session.version);
   }
 
   public async delete(id: string): Promise<void> {

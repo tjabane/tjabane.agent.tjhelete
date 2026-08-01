@@ -25,6 +25,7 @@ export function mapSessionRecord(record: SessionRecord): Session {
     id: record.id,
     userId: record.userId,
     history: mapConversationHistoryRecord(record.history),
+    ...(record.version === undefined ? {} : { version: record.version }),
   };
 }
 
@@ -33,6 +34,7 @@ export function mapSession(session: Session): SessionRecord {
     id: session.id,
     userId: session.userId,
     history: session.history.map(mapConversationMessage),
+    ...(session.version === undefined ? {} : { version: session.version }),
   };
 }
 
