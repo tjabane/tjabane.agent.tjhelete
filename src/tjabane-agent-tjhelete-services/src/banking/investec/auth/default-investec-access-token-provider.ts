@@ -57,6 +57,7 @@ export class DefaultInvestecAccessTokenProvider implements InvestecAccessTokenPr
       },
       body: "grant_type=client_credentials",
       timeoutMs: this.requestTimeoutMs,
+      retryable: true,
     });
     const dto = decodeAccessToken(response.body);
     const expiresAt = this.now() + Math.max(0, dto.expires_in * 1_000 - this.expirySafetyMarginMs);

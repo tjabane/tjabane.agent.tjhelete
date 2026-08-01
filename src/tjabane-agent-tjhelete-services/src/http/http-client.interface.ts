@@ -9,6 +9,7 @@ export interface HttpRequestOptions {
   readonly body?: string;
   readonly timeoutMs?: number;
   readonly signal?: AbortSignal;
+  readonly retryable?: boolean;
 }
 
 export interface HttpResponse {

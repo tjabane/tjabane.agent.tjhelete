@@ -2,6 +2,7 @@ export type {
   ConversationHistory,
   ConversationMessage,
   ConversationMessageRole,
+  ConversationToolCall,
 } from "./entities/conversation-history.js";
 export type {
   DatabaseClient,
