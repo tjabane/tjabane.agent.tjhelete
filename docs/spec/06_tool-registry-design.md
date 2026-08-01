@@ -146,6 +146,14 @@ The registry dispatches by name only. Each tool has a narrow responsibility:
 
 No tool is defined for payments, transfers, banking-detail changes, or investment recommendations. They are outside the product boundary.
 
+### Agent-directed tool orchestration
+
+The model decides which approved `AgentTool` instances to call and in what order through the existing agent loop. The application does not hard-code a sequence such as balances before spending or transactions before budgets.
+
+Model-visible tools represent user-facing financial capabilities, not individual provider endpoints. For example, `get_account_balances` is one approved tool. Its injected banking capability internally discovers every Investec-authorised account and calls the account-specific balance endpoint for each one. `getAccounts()` and `getAccountBalance(accountId)` are service operations, not separate model tools.
+
+This distinction preserves agent autonomy at the product-capability level while preventing provider account identifiers and required API choreography from becoming model-controlled inputs.
+
 ## Metadata ownership
 
 Tool metadata belongs to the agent tool, not the services module.
@@ -279,6 +287,7 @@ Transaction and balance tools do not accept provider account identifiers or acco
 - The application serves one configured user and uses one deployment-scoped Investec connection; multi-user credential and account mapping are outside the current scope.
 - Provider account identifiers come only from Investec's authorised accounts endpoint and are never accepted from model-controlled arguments.
 - Balance, transaction-list, and spending-summary operations cover all accounts authorised by the Investec API key and fail safely rather than returning incomplete aggregates.
+- The model chooses approved application tools and their order; concrete tools own any required sequence of lower-level service calls.
 - Financial data tools may read, analyse, and update the application's own preferences/goals/categories; they may never move money.
 
 ## Deferred decisions

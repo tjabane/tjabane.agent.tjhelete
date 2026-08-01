@@ -1,3 +1,4 @@
+export type { BankAccountBalance } from "./banking/bank-account-balance.interface.js";
 export type { BankAccount } from "./banking/bank-account.interface.js";
 export type { BankApiClient } from "./banking/bank-api-client.interface.js";
 export type { Transaction } from "./banking/transaction.interface.js";

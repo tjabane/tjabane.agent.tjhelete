@@ -6,9 +6,9 @@ systems, beginning with the Investec Private Bank API. It deliberately describes
 design only; it does not implement the client.
 
 The initial banking scope is limited to discovering the accounts authorised by
-the deployment's Investec API key and retrieving their posted transactions.
-Account balances, pending transactions, payments, transfers, and other Investec
-capabilities are outside this first design.
+the deployment's Investec API key, retrieving their balances, and retrieving
+their posted transactions. Pending transactions, payments, transfers, and other
+Investec capabilities are outside this first design.
 
 ## Design intent
 
@@ -21,9 +21,9 @@ The services module owns the details of communicating with external HTTP APIs:
 5. Return provider-neutral results or explicit failures.
 
 The rest of the application works with `BankApiClient`, `BankAccount`,
-`TransactionQuery`, and `Transaction`. It does not know how Investec names
-fields, structures response envelopes, authenticates requests, or constructs
-endpoint URLs.
+`BankAccountBalance`, `TransactionQuery`, and `Transaction`. It does not know
+how Investec names fields, structures response envelopes, authenticates
+requests, or constructs endpoint URLs.
 
 ## Ownership and dependency direction
 
@@ -39,7 +39,7 @@ infrastructure used by service adapters and also belongs to the services module.
 
 ```text
 Services module
-  -> owns BankApiClient, BankAccount, TransactionQuery, and Transaction
+  -> owns BankApiClient, BankAccount, BankAccountBalance, TransactionQuery, and Transaction
   -> owns InvestecBankApiClient, Investec DTOs, validation, and mapping
   -> owns HttpClient and FetchHttpClient
 
@@ -88,8 +88,9 @@ separate domain decision.
 
 | Entity                              | Owner             | Responsibility                                                                    |
 | ----------------------------------- | ----------------- | --------------------------------------------------------------------------------- |
-| `BankApiClient`                     | Services/Banking  | Defines provider-neutral account-discovery and posted-transaction capabilities.   |
+| `BankApiClient`                     | Services/Banking  | Defines provider-neutral account, balance, and posted-transaction capabilities.   |
 | `BankAccount`                       | Services/Banking  | Represents one authorised account without exposing sensitive account details.     |
+| `BankAccountBalance`                | Services/Banking  | Represents validated balances and currency for one authorised account.            |
 | `TransactionQuery`                  | Services/Banking  | Defines the required calendar-date range and optional transaction-type filter.    |
 | `Transaction`                       | Services/Banking  | Represents one validated, provider-neutral posted transaction.                    |
 | `HttpClient`                        | Services/HTTP     | Defines the HTTP capability required by service adapters.                         |
@@ -108,6 +109,7 @@ owns them. Provider implementation details are nested beneath that root:
 tjabane-agent-tjhelete-services/
 `-- src/
     |-- banking/
+    |   |-- bank-account-balance.interface.ts
     |   |-- bank-account.interface.ts
     |   |-- bank-api-client.interface.ts
     |   |-- transaction.interface.ts
@@ -119,14 +121,17 @@ tjabane-agent-tjhelete-services/
     |       |-- clients/
     |       |   `-- investec-bank-api-client.ts
     |       |-- decoders/
+    |       |   |-- investec-account-balance.decoder.ts
     |       |   |-- investec-account.decoder.ts
     |       |   `-- investec-transaction.decoder.ts
     |       |-- dtos/
+    |       |   |-- investec-account-balance.dto.ts
     |       |   |-- investec-account.dto.ts
     |       |   `-- investec-transaction.dto.ts
     |       |-- errors/
     |       |   `-- provider-response-validation-error.ts
     |       `-- mappers/
+    |           |-- investec-account-balance-mapper.ts
     |           |-- investec-account-mapper.ts
     |           `-- investec-transaction-mapper.ts
     |-- http/
@@ -149,6 +154,7 @@ application requirement and provider contract exist.
 ```ts
 export interface BankApiClient {
   getAccounts(): Promise<readonly BankAccount[]>;
+  getAccountBalance(accountId: string): Promise<BankAccountBalance>;
   getTransactions(accountId: string, query: TransactionQuery): Promise<readonly Transaction[]>;
 }
 
@@ -156,6 +162,16 @@ export interface BankAccount {
   readonly id: string;
   readonly referenceName: string;
   readonly productName: string;
+}
+
+export interface BankAccountBalance {
+  readonly accountId: string;
+  readonly currentBalance: number;
+  readonly availableBalance: number;
+  readonly budgetBalance: number;
+  readonly straightBalance: number;
+  readonly cashBalance: number;
+  readonly currency: string;
 }
 
 export interface TransactionQuery {
@@ -186,6 +202,8 @@ export interface Transaction {
 - Full account numbers, account-holder names, profile identifiers, and KYC
   fields are validated at the provider boundary but are not included in the
   provider-neutral `BankAccount` result.
+- `getAccountBalance(accountId)` returns finite balance values and a non-empty
+  currency for exactly the requested account.
 - `accountId` is non-empty and no longer than 30 characters.
 - `fromDate` and `toDate` are real calendar dates in strict `YYYY-MM-DD` format.
 - `fromDate` is not after `toDate`.
@@ -214,18 +232,18 @@ export interface Transaction {
 ## Amount and currency boundary
 
 The transaction endpoint returns `amount` as a JSON number but does not include
-a currency. Currency is available from other account endpoints, including the
-account-balance endpoint.
+a currency. `getAccountBalance()` supplies the currency for its account, but a
+transaction result does not independently prove its currency.
 
 The initial `Transaction` therefore preserves `amount` as a finite number and
-does not claim to expose a complete `Money` value. Consumers must not assume a
-currency merely because the initial provider is in South Africa.
+does not claim to expose a complete `Money` value. Consumers must associate
+transaction totals with validated account currency and must not combine values
+from different currencies into one amount.
 
 The decoder rejects non-finite values. Aggregation code must account for
-JavaScript floating-point behavior. A future account/balance design must decide
-how currency is obtained and whether amounts are normalised to decimal strings
-or integer minor units. A `Money` interface is deferred until that decision is
-made.
+JavaScript floating-point behavior. Whether amounts are normalised to decimal
+strings or integer minor units remains deferred. A `Money` interface is deferred
+until that decision is made.
 
 ## HTTP contract
 
@@ -460,6 +478,7 @@ classDiagram
     class BankApiClient {
         <<interface>>
         +getAccounts() Promise~readonly BankAccount[]~
+        +getAccountBalance(accountId: string) Promise~BankAccountBalance~
         +getTransactions(accountId: string, query: TransactionQuery) Promise~readonly Transaction[]~
     }
 
@@ -467,6 +486,16 @@ classDiagram
         +id: string
         +referenceName: string
         +productName: string
+    }
+
+    class BankAccountBalance {
+        +accountId: string
+        +currentBalance: number
+        +availableBalance: number
+        +budgetBalance: number
+        +straightBalance: number
+        +cashBalance: number
+        +currency: string
     }
 
     class TransactionQuery {
@@ -491,6 +520,7 @@ classDiagram
         -accessTokens: InvestecAccessTokenProvider
         -baseUrl: URL
         +getAccounts() Promise~readonly BankAccount[]~
+        +getAccountBalance(accountId: string) Promise~BankAccountBalance~
         +getTransactions(accountId: string, query: TransactionQuery) Promise~readonly Transaction[]~
     }
 
@@ -512,6 +542,7 @@ classDiagram
 
     InvestecBankApiClient ..|> BankApiClient : implements
     BankApiClient --> BankAccount : returns
+    BankApiClient --> BankAccountBalance : returns
     FetchHttpClient ..|> HttpClient : implements
     BankApiClient --> TransactionQuery : accepts
     BankApiClient --> Transaction : returns
@@ -553,8 +584,9 @@ sequenceDiagram
 ## Public and private exports
 
 The services module publicly exports `BankApiClient`, `BankAccount`,
-`TransactionQuery`, `Transaction`, `InvestecBankApiClient`, `FetchHttpClient`, and only the
-configuration or authentication types required by the composition root.
+`BankAccountBalance`, `TransactionQuery`, `Transaction`, `InvestecBankApiClient`,
+`FetchHttpClient`, and only the configuration or authentication types required
+by the composition root.
 Application and tool modules consume the provider-neutral banking contracts
 through the services package public API.
 
@@ -568,7 +600,7 @@ error bodies remain private to the services package. The package root
   `banking` capability.
 - The agent module does not own banking contracts.
 - Keep the first public banking contract to `BankApiClient`, `BankAccount`,
-  `TransactionQuery`, and `Transaction`.
+  `BankAccountBalance`, `TransactionQuery`, and `Transaction`.
 - Discover the complete provider-authorised account set through
   `BankApiClient.getAccounts()` before making account-specific requests.
 - Provider adapters implement the service-owned capability contract.
@@ -584,8 +616,8 @@ error bodies remain private to the services package. The package root
 - Return posted transactions only in the initial contract.
 - Do not introduce application pagination until the provider documents a
   request mechanism.
-- Preserve transaction amounts as finite numbers initially and defer a complete
-  money model until account currency is available.
+- Preserve transaction and balance amounts as finite numbers initially and
+  defer a complete money model.
 - Return HTTP responses only for 2xx statuses and use explicit failure types.
 - Do not perform automatic HTTP retries.
 - Inject `HttpClient`, `InvestecAccessTokenProvider`, and `baseUrl`.
@@ -596,7 +628,6 @@ error bodies remain private to the services package. The package root
 
 ## Deferred decisions
 
-- Balance contracts, including the source of transaction currency.
 - Decimal or integer-minor-unit money representation after currency is known.
 - Pending-transaction modeling and whether it should use a discriminated union.
 - Verification that Investec `uuid` values remain stable across repeated

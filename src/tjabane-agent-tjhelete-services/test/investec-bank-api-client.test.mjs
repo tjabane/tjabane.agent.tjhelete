@@ -73,6 +73,105 @@ test("Investec client fails rather than returning an incomplete account page", a
   await assert.rejects(() => client.getAccounts(), /totalPages is greater than one/);
 });
 
+test("Investec client requests and maps an account balance", async () => {
+  const httpClient = new FakeHttpClient(createBalanceResponse());
+  const client = new InvestecBankApiClient(
+    httpClient,
+    { getAccessToken: async () => "bank-token" },
+    new URL("https://openapi.test"),
+    7_500,
+  );
+
+  const balance = await client.getAccountBalance("account-1");
+
+  assert.deepEqual(httpClient.requests, [
+    {
+      method: "GET",
+      url: new URL("https://openapi.test/za/pb/v1/accounts/account-1/balance"),
+      headers: {
+        Accept: "application/json",
+        Authorization: "Bearer bank-token",
+      },
+      timeoutMs: 7_500,
+    },
+  ]);
+  assert.deepEqual(balance, {
+    accountId: "account-1",
+    currentBalance: 28_857.76,
+    availableBalance: 98_857.76,
+    budgetBalance: 0,
+    straightBalance: 0,
+    cashBalance: -10_818_415.98,
+    currency: "ZAR",
+  });
+});
+
+test("Investec client validates provider balance fields", async () => {
+  const response = createBalanceResponse();
+  response.body.data.availableBalance = "98857.76";
+  const client = new InvestecBankApiClient(
+    new FakeHttpClient(response),
+    { getAccessToken: async () => "bank-token" },
+    new URL("https://openapi.test"),
+  );
+
+  await assert.rejects(
+    () => client.getAccountBalance("account-1"),
+    (error) => {
+      assert.equal(error.name, "ProviderResponseValidationError");
+      assert.match(error.message, /availableBalance/);
+      return true;
+    },
+  );
+});
+
+test("Investec client rejects an invalid balance account ID before acquiring a token", async () => {
+  let tokenRequests = 0;
+  const client = new InvestecBankApiClient(
+    new FakeHttpClient(createBalanceResponse()),
+    {
+      getAccessToken: async () => {
+        tokenRequests += 1;
+        return "bank-token";
+      },
+    },
+    new URL("https://openapi.test"),
+  );
+
+  await assert.rejects(() => client.getAccountBalance(" account-1"), /account ID/);
+  assert.equal(tokenRequests, 0);
+});
+
+test("Investec client rejects a balance belonging to another account", async () => {
+  const response = createBalanceResponse();
+  response.body.data.accountId = "account-2";
+  const client = new InvestecBankApiClient(
+    new FakeHttpClient(response),
+    { getAccessToken: async () => "bank-token" },
+    new URL("https://openapi.test"),
+  );
+
+  await assert.rejects(
+    () => client.getAccountBalance("account-1"),
+    /does not match the requested account/,
+  );
+});
+
+test("Investec client fails rather than returning an incomplete balance page", async () => {
+  const response = createBalanceResponse();
+  response.body.meta.totalPages = 2;
+  const client = new InvestecBankApiClient(
+    new FakeHttpClient(response),
+    { getAccessToken: async () => "bank-token" },
+    new URL("https://openapi.test"),
+  );
+
+  await assert.rejects(
+    () => client.getAccountBalance("account-1"),
+    /totalPages is greater than one/,
+  );
+});
+
 test("Investec client requests and maps posted transactions", async () => {
   const httpClient = new FakeHttpClient(createResponse());
   const accessTokens = {
@@ -276,6 +375,30 @@ function createAccountsResponse() {
       },
       links: {
         self: "https://openapi.test/za/pb/v1/accounts",
+      },
+      meta: {
+        totalPages: 1,
+      },
+    },
+    headers: {},
+  };
+}
+
+function createBalanceResponse() {
+  return {
+    status: 200,
+    body: {
+      data: {
+        accountId: "account-1",
+        currentBalance: 28_857.76,
+        availableBalance: 98_857.76,
+        budgetBalance: 0,
+        straightBalance: 0,
+        cashBalance: -10_818_415.98,
+        currency: "ZAR",
+      },
+      links: {
+        self: "https://openapi.test/za/pb/v1/accounts/account-1/balance",
       },
       meta: {
         totalPages: 1,

@@ -1,15 +1,18 @@
 import type { BankApiClient } from "../../bank-api-client.interface.js";
+import type { BankAccountBalance } from "../../bank-account-balance.interface.js";
 import type { BankAccount } from "../../bank-account.interface.js";
 import type { Transaction } from "../../transaction.interface.js";
 import type { TransactionQuery } from "../../transaction-query.interface.js";
 import type { HttpClient } from "../../../http/http-client.interface.js";
 import type { InvestecAccessTokenProvider } from "../auth/investec-access-token-provider.interface.js";
+import { decodeInvestecAccountBalanceResponse } from "../decoders/investec-account-balance.decoder.js";
 import { decodeInvestecAccountsResponse } from "../decoders/investec-account.decoder.js";
 import {
   decodeInvestecTransactionResponse,
   isIsoCalendarDate,
 } from "../decoders/investec-transaction.decoder.js";
 import { ProviderResponseValidationError } from "../errors/provider-response-validation-error.js";
+import { mapInvestecAccountBalance } from "../mappers/investec-account-balance-mapper.js";
 import { mapInvestecAccount } from "../mappers/investec-account-mapper.js";
 import { mapInvestecTransaction } from "../mappers/investec-transaction-mapper.js";
 
@@ -41,6 +44,32 @@ export class InvestecBankApiClient implements BankApiClient {
     this.rejectIncompletePage(dto.meta.totalPages);
 
     return dto.data.accounts.map(mapInvestecAccount);
+  }
+
+  public async getAccountBalance(accountId: string): Promise<BankAccountBalance> {
+    this.validateAccountId(accountId);
+
+    const accessToken = await this.accessTokens.getAccessToken();
+    const response = await this.httpClient.request({
+      method: "GET",
+      url: new URL(`/za/pb/v1/accounts/${encodeURIComponent(accountId)}/balance`, this.baseUrl),
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      timeoutMs: this.requestTimeoutMs,
+    });
+    const dto = decodeInvestecAccountBalanceResponse(response.body);
+
+    this.rejectIncompletePage(dto.meta.totalPages);
+
+    if (dto.data.accountId !== accountId) {
+      throw new ProviderResponseValidationError(
+        "data.accountId does not match the requested account.",
+      );
+    }
+
+    return mapInvestecAccountBalance(dto.data);
   }
 
   public async getTransactions(
