@@ -8,7 +8,11 @@
   "scripts": {
     "build": "tsc",
     "clean": "rimraf dist",
-    "test": "echo \"No tests configured yet\""
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@tjabane-agent-tjhelete/agent": "0.1.0",
+    "@tjabane-agent-tjhelete/services": "0.1.0"
   },
   "devDependencies": {
     "rimraf": "^6.0.1",

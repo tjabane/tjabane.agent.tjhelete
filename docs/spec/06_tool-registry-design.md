@@ -133,9 +133,10 @@ The registry dispatches by name only. Each tool has a narrow responsibility:
 
 | Tool                              | Effect | Application dependency                                  | Purpose                                                                                                                |
 | --------------------------------- | ------ | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `get_account_balances`            | Read   | all-authorised-accounts balance query                   | Return labelled balances and freshness across all authorised accounts.                                                 |
+| `list_accounts`                   | Read   | authorised account query                                | Return safe reference and product names without provider account identifiers.                                          |
+| `get_account_balances`            | Read   | authorised-account balance query                        | Return labelled balances for all authorised accounts or selected safe references.                                      |
 | `get_spending_summary`            | Read   | all-authorised-accounts transaction query, budget query | Summarise a selected period across all authorised accounts, including categories and budget comparison when requested. |
-| `list_transactions`               | Read   | all-authorised-accounts transaction query               | Return a short, filtered list of transactions across all authorised accounts.                                          |
+| `list_transactions`               | Read   | authorised-account transaction query                    | Return a short, filtered list across all authorised accounts or selected safe references.                              |
 | `get_budget_status`               | Read   | budget query, transaction query                         | Return budget remaining or exceeded for daily or weekly periods.                                                       |
 | `set_budget`                      | Write  | budget service                                          | Set a daily or weekly spending target.                                                                                 |
 | `list_goals`                      | Read   | goal query                                              | Return goal progress and pace.                                                                                         |
@@ -145,6 +146,8 @@ The registry dispatches by name only. Each tool has a narrow responsibility:
 | `get_supported_capabilities`      | Read   | none                                                    | Return concise help based on the enabled tool set.                                                                     |
 
 No tool is defined for payments, transfers, banking-detail changes, or investment recommendations. They are outside the product boundary.
+
+The initially implemented tool set is `list_accounts`, `get_account_balances`, and `list_transactions`. The remaining rows describe the target catalog and are not registered until their application dependencies exist.
 
 ### Agent-directed tool orchestration
 
@@ -281,7 +284,7 @@ Transaction and balance tools do not accept provider account identifiers or acco
 - The registry has no dynamic tool loading; its complete tool set is explicit at application startup.
 - The registry routes by exact name and controls unknown-tool behaviour.
 - Concrete tools validate their own arguments and own their tool-specific failure translation.
-- Tool definitions are provider-neutral and belong in the agent module.
+- Shared tool contracts and the generic registry belong in the agent module. Concrete tool definitions and implementations belong in the tools module.
 - Tool results are compact, structured, and safe for the model to see.
 - Identity, session, time, and timezone come from trusted execution context, never from tool arguments.
 - The application serves one configured user and uses one deployment-scoped Investec connection; multi-user credential and account mapping are outside the current scope.

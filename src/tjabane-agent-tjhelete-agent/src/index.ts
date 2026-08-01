@@ -1,11 +1,13 @@
 export { Agent, DefaultAgent } from "./agent/agent.js";
 export { type AgentFactory, DefaultAgentFactory } from "./agent/agent-factory.js";
+export { DefaultToolRegistry } from "./tools/default-tool-registry.js";
 export {
   ConversationOrchestrator,
   type ConversationOrchestratorOptions,
 } from "./orchestration/conversation-orchestrator.js";
 export type {
   AgentConfig,
+  AgentTool,
   AgentSession,
   ConversationHistory,
   ConversationMessage,
