@@ -1,5 +1,11 @@
 # System Overview
 
+## Scope constraint: single user
+
+Agent Tjhelete is a single-user application. The deployed application, its Investec credentials, API key, sessions, preferences, schedules, and financial data all belong to one configured user.
+
+Architecture and implementation decisions must be based on this constraint. The system does not require multi-user tenancy, per-user bank credentials, user-to-bank-connection mapping, household isolation, or account ownership tables. Investec API-key permissions define which accounts the application may access. Multi-user support is outside the current product scope and must be introduced only through an explicit future design change.
+
 ## 1 system Overview
 
 A personal banker agent that will actively monitor your spenditure and help keep track of financial goals. Communication with the agent will be done over whatapp and it will use transation history and statements to track the money. The agent can schedule reports daily, weekly and monthly, it will also alert the user when they are going beyond their daily spend allowance.
@@ -45,17 +51,17 @@ It provides a simple api and a sandbox to use for communicating over whatsapp. I
 
 **Assumption:** the customer initiates the conversation and all replies are free-form messages sent within WhatsApp's 24-hour customer-service window. Estimates exclude VAT, foreign-exchange charges, optional products, and application/agent costs.
 
-| Daily traffic pattern | Approx. messages/month | Meta Cloud API directly | Twilio Programmable Messaging | Difference |
-| --- | ---: | ---: | ---: | ---: |
-| 10 total messages/day (combined customer and agent messages) | 300 | $0.00 | $1.50 | $1.50/month more with Twilio |
-| 10 messages in each direction/day | 600 | $0.00 | $3.00 | $3.00/month more with Twilio |
+| Daily traffic pattern                                        | Approx. messages/month | Meta Cloud API directly | Twilio Programmable Messaging |                   Difference |
+| ------------------------------------------------------------ | ---------------------: | ----------------------: | ----------------------------: | ---------------------------: |
+| 10 total messages/day (combined customer and agent messages) |                    300 |                   $0.00 |                         $1.50 | $1.50/month more with Twilio |
+| 10 messages in each direction/day                            |                    600 |                   $0.00 |                         $3.00 | $3.00/month more with Twilio |
 
-| Item | Meta Cloud API directly | Twilio |
-| --- | ---: | ---: |
-| Meta free-form message fee within the 24-hour service window | $0.00 | $0.00 |
-| Platform fee per inbound or outbound message | $0.00 | $0.005 |
-| 300 messages/month | $0.00 | 300 x $0.005 = $1.50 |
-| 600 messages/month | $0.00 | 600 x $0.005 = $3.00 |
+| Item                                                         | Meta Cloud API directly |               Twilio |
+| ------------------------------------------------------------ | ----------------------: | -------------------: |
+| Meta free-form message fee within the 24-hour service window |                   $0.00 |                $0.00 |
+| Platform fee per inbound or outbound message                 |                   $0.00 |               $0.005 |
+| 300 messages/month                                           |                   $0.00 | 300 x $0.005 = $1.50 |
+| 600 messages/month                                           |                   $0.00 | 600 x $0.005 = $3.00 |
 
 ### 2.2 Backend API
 

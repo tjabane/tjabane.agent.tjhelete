@@ -73,7 +73,7 @@ test("agent leaves configuration validation to its dependencies", async () => {
   );
 });
 
-test("agent executes requested tools and continues until the model replies", async () => {
+test("agent serializes tool results into canonical JSON history before continuing", async () => {
   const requests = [];
   const modelClient = {
     async createResponse(request) {
