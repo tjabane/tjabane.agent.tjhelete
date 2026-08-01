@@ -147,6 +147,51 @@ test("tool argument validation returns a controlled failure", async () => {
   assert.deepEqual(bank.transactionRequests, []);
 });
 
+test("published input schemas enforce runtime structural validation", async () => {
+  const bank = new FakeBankApiClient();
+  const cases = [
+    [new ListAccountsTool(bank), null],
+    [new ListAccountsTool(bank), { unsupported: true }],
+    [new GetAccountBalancesTool(bank), { accountReferences: [] }],
+    [new GetAccountBalancesTool(bank), { accountReferences: null }],
+    [new GetAccountBalancesTool(bank), { accountReferences: ["   "] }],
+    [new ListTransactionsTool(bank), { fromDate: "2026-07-01" }],
+    [new ListTransactionsTool(bank), { fromDate: "2026-02-30", toDate: "2026-03-01" }],
+    [new ListTransactionsTool(bank), { fromDate: "2026-07-01", toDate: "2026-07-31", limit: 51 }],
+    [
+      new ListTransactionsTool(bank),
+      { fromDate: "2026-07-01", toDate: "2026-07-31", transactionType: "   " },
+    ],
+  ];
+
+  for (const [tool, arguments_] of cases) {
+    const result = await tool.execute(context, arguments_);
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, "invalid_arguments");
+  }
+
+  assert.equal(bank.accountRequests, 0);
+  assert.deepEqual(bank.balanceRequests, []);
+  assert.deepEqual(bank.transactionRequests, []);
+});
+
+test("domain validation runs after structural schema validation", async () => {
+  const bank = new FakeBankApiClient();
+  const duplicateReferences = await new GetAccountBalancesTool(bank).execute(context, {
+    accountReferences: ["Savings account", " savings ACCOUNT "],
+  });
+  const reversedDates = await new ListTransactionsTool(bank).execute(context, {
+    fromDate: "2026-07-31",
+    toDate: "2026-07-01",
+  });
+
+  assert.equal(duplicateReferences.ok, false);
+  assert.equal(duplicateReferences.error.code, "invalid_arguments");
+  assert.equal(reversedDates.ok, false);
+  assert.equal(reversedDates.error.code, "invalid_arguments");
+  assert.equal(bank.accountRequests, 0);
+});
+
 test("banking provider failures become model-safe tool failures", async () => {
   const bank = new FakeBankApiClient();
   bank.accountsError = new Error("Provider credential secret leaked here.");

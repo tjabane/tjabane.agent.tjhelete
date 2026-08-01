@@ -11,8 +11,11 @@
     "test": "npm run build && node --test test/*.test.mjs"
   },
   "dependencies": {
+    "@sinclair/typebox": "^0.34.52",
     "@tjabane-agent-tjhelete/agent": "0.1.0",
-    "@tjabane-agent-tjhelete/services": "0.1.0"
+    "@tjabane-agent-tjhelete/services": "0.1.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
   },
   "devDependencies": {
     "rimraf": "^6.0.1",

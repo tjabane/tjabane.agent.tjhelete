@@ -5,40 +5,41 @@ import type {
   ToolResult,
 } from "@tjabane-agent-tjhelete/agent";
 import type { BankApiClient, TransactionQuery } from "@tjabane-agent-tjhelete/services";
+import { Type, type Static } from "@sinclair/typebox";
+import { createArgumentValidator } from "../schema/argument-validator.js";
 import {
   executeBankingAction,
-  invalidArguments,
-  readAccountReferences,
-  readArguments,
-  readLimit,
-  readOptionalTrimmedString,
-  readRequiredDate,
+  normalizeAccountReferences,
+  normalizeOptionalString,
   resolveAccounts,
 } from "./tool-support.js";
+import { invalidArguments } from "../tool-errors.js";
 
 const defaultLimit = 10;
+
+const inputSchema = Type.Object(
+  {
+    fromDate: Type.String({ format: "date" }),
+    toDate: Type.String({ format: "date" }),
+    accountReferences: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, pattern: "\\S" }), {
+        minItems: 1,
+        uniqueItems: true,
+      }),
+    ),
+    transactionType: Type.Optional(Type.String({ minLength: 1, pattern: "\\S" })),
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 50 })),
+  },
+  { additionalProperties: false },
+);
+type ListTransactionsArguments = Static<typeof inputSchema>;
+const validateArguments = createArgumentValidator(inputSchema);
 
 const definition: ToolDefinition = {
   name: "list_transactions",
   description:
     "List recent posted transactions for all authorised accounts or selected account references within an explicit date range.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      fromDate: { type: "string", format: "date" },
-      toDate: { type: "string", format: "date" },
-      accountReferences: {
-        type: "array",
-        items: { type: "string", minLength: 1 },
-        minItems: 1,
-        uniqueItems: true,
-      },
-      transactionType: { type: "string", minLength: 1 },
-      limit: { type: "integer", minimum: 1, maximum: 50 },
-    },
-    required: ["fromDate", "toDate"],
-    additionalProperties: false,
-  },
+  inputSchema,
 };
 
 export class ListTransactionsTool implements AgentTool {
@@ -48,16 +49,10 @@ export class ListTransactionsTool implements AgentTool {
 
   public async execute(_context: ToolExecutionContext, arguments_: unknown): Promise<ToolResult> {
     return executeBankingAction(async () => {
-      const input = readArguments(arguments_, [
-        "fromDate",
-        "toDate",
-        "accountReferences",
-        "transactionType",
-        "limit",
-      ]);
+      const input = validateArguments(arguments_);
       const query = this.readQuery(input);
-      const references = readAccountReferences(input.accountReferences);
-      const limit = readLimit(input.limit, defaultLimit);
+      const references = normalizeAccountReferences(input.accountReferences);
+      const limit = input.limit ?? defaultLimit;
       const accounts = await resolveAccounts(this.bankApiClient, references);
       const accountResults = await Promise.all(
         accounts.map(async (account) => {
@@ -98,18 +93,15 @@ export class ListTransactionsTool implements AgentTool {
     });
   }
 
-  private readQuery(input: Record<string, unknown>): TransactionQuery {
-    const fromDate = readRequiredDate(input, "fromDate");
-    const toDate = readRequiredDate(input, "toDate");
-
-    if (fromDate > toDate) {
+  private readQuery(input: ListTransactionsArguments): TransactionQuery {
+    if (input.fromDate > input.toDate) {
       throw invalidArguments("fromDate must not be after toDate.");
     }
 
-    const transactionType = readOptionalTrimmedString(input.transactionType, "transactionType");
+    const transactionType = normalizeOptionalString(input.transactionType);
     return {
-      fromDate,
-      toDate,
+      fromDate: input.fromDate,
+      toDate: input.toDate,
       ...(transactionType === undefined ? {} : { transactionType }),
     };
   }

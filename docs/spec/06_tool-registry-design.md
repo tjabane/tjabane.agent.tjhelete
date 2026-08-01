@@ -41,7 +41,9 @@ export interface ToolRegistry {
 }
 ```
 
-`JsonSchema` represents the project’s chosen JSON Schema type. The exact library is deliberately deferred; the schema must be usable both to describe the model contract and validate the incoming arguments.
+The shared agent contract keeps `inputSchema` provider-neutral as a read-only record. Concrete tools construct typed schemas with TypeBox and expose that same schema object in their definitions. Ajv compiles the object once and validates every untrusted argument payload before tool-specific logic runs; `ajv-formats` supplies standard format validation such as calendar dates. TypeBox derives the validated TypeScript argument type from the schema, so structural fields and runtime validation do not have separate handwritten definitions.
+
+JSON Schema owns structural rules such as required properties, types, formats, ranges, and additional properties. Tool code owns domain semantics that depend on normalization, relationships, or application data, such as case-insensitive duplicate account references, date ordering, and resolving a reference against authorised accounts.
 
 ## Execution context
 
@@ -284,6 +286,7 @@ Transaction and balance tools do not accept provider account identifiers or acco
 - The registry has no dynamic tool loading; its complete tool set is explicit at application startup.
 - The registry routes by exact name and controls unknown-tool behaviour.
 - Concrete tools validate their own arguments and own their tool-specific failure translation.
+- Each concrete tool exposes and executes one TypeBox input schema. Ajv owns structural validation; tool code owns only domain-semantic validation.
 - Shared tool contracts and the generic registry belong in the agent module. Concrete tool definitions and implementations belong in the tools module.
 - Tool results are compact, structured, and safe for the model to see.
 - `Agent` serialises each `ToolResult` once as canonical JSON in conversation history; `ModelClient` owns only the provider-specific message-envelope conversion.
@@ -296,7 +299,6 @@ Transaction and balance tools do not accept provider account identifiers or acco
 
 ## Deferred decisions
 
-- The JSON Schema validation library and precise `JsonSchema` type.
 - Exact application contracts for budgets, goals, categorisation, and notifications.
 - Whether tool execution is wrapped in telemetry/auditing middleware.
 - The precise provider-specific message-envelope conversion performed by `ModelClient`.
