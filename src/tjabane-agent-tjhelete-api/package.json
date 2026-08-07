@@ -9,9 +9,15 @@
     "clean": "rimraf dist",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
-    "test": "echo \"No tests configured yet\""
+    "test": "npm run build && node --test test/*.test.mjs"
   },
   "dependencies": {
+    "@azure/cosmos": "^4.10.0",
+    "@azure/identity": "^4.13.0",
+    "@tjabane-agent-tjhelete/agent": "0.1.0",
+    "@tjabane-agent-tjhelete/repository": "0.1.0",
+    "@tjabane-agent-tjhelete/services": "0.1.0",
+    "@tjabane-agent-tjhelete/tools": "0.1.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "helmet": "^7.1.0"

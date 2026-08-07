@@ -4,6 +4,7 @@ export type DatabaseQuery = Readonly<Record<string, DatabaseQueryValue>>;
 
 export interface DatabaseRecord {
   readonly id: string;
+  readonly version?: string;
 }
 
 export interface DatabaseClient {
@@ -17,9 +18,12 @@ export interface DatabaseClient {
     query: DatabaseQuery,
   ): Promise<TRecord | null>;
 
+  create<TRecord extends DatabaseRecord>(collectionName: string, record: TRecord): Promise<boolean>;
+
   save<TRecord extends DatabaseRecord>(
     collectionName: string,
     record: TRecord,
+    expectedVersion?: string,
   ): Promise<void>;
 
   delete(collectionName: string, id: string): Promise<void>;

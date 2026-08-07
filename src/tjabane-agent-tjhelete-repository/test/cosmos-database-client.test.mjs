@@ -37,6 +37,23 @@ test("findById returns null when Cosmos returns not found", async () => {
   assert.equal(record, null);
 });
 
+test("findById exposes the Cosmos ETag as an opaque version", async () => {
+  const container = new FakeCosmosContainer({
+    records: [{ id: "versioned", userId: "user", history: [], _etag: "etag-1" }],
+  });
+  const databaseClient = new CosmosDatabaseClient(
+    new FakeCosmosClient({ sessions: container }),
+    "agent-db",
+  );
+
+  assert.deepEqual(await databaseClient.findById("sessions", "versioned"), {
+    id: "versioned",
+    userId: "user",
+    history: [],
+    version: "etag-1",
+  });
+});
+
 test("findOne uses a parameterized single-record query", async () => {
   const container = new FakeCosmosContainer({
     queryResults: [{ id: "session-2", userId: "user-2", history: [] }],
@@ -99,6 +116,40 @@ test("save upserts the record into the collection", async () => {
   ]);
 });
 
+test("create atomically rejects an existing record", async () => {
+  const container = new FakeCosmosContainer({ records: [{ id: "existing" }] });
+  const databaseClient = new CosmosDatabaseClient(
+    new FakeCosmosClient({ inbox: container }),
+    "agent-db",
+  );
+
+  assert.equal(await databaseClient.create("inbox", { id: "new" }), true);
+  assert.equal(await databaseClient.create("inbox", { id: "existing" }), false);
+});
+
+test("save uses an ETag condition and does not persist the opaque version", async () => {
+  const container = new FakeCosmosContainer({
+    records: [{ id: "session-versioned", _etag: "etag-1" }],
+  });
+  const databaseClient = new CosmosDatabaseClient(
+    new FakeCosmosClient({ sessions: container }),
+    "agent-db",
+  );
+
+  await databaseClient.save(
+    "sessions",
+    { id: "session-versioned", version: "etag-1", value: "updated" },
+    "etag-1",
+  );
+
+  assert.deepEqual(container.replacedRecords, [
+    {
+      record: { id: "session-versioned", value: "updated" },
+      options: { accessCondition: { type: "IfMatch", condition: "etag-1" } },
+    },
+  ]);
+});
+
 test("delete deletes with the resolved partition key", async () => {
   const container = new FakeCosmosContainer({
     records: [{ id: "session-5", userId: "user-5", history: [] }],
@@ -152,6 +203,7 @@ class FakeCosmosContainer {
   itemCalls = [];
   queryCalls = [];
   upsertedRecords = [];
+  replacedRecords = [];
 
   constructor({ records = [], queryResults = [] } = {}) {
     this.queryResults = queryResults;
@@ -172,6 +224,13 @@ class FakeCosmosContainer {
       },
       upsert: async (record) => {
         this.upsertedRecords.push(cloneRecord(record));
+        this.records.set(record.id, cloneRecord(record));
+      },
+      create: async (record) => {
+        if (this.records.has(record.id)) {
+          throw { code: 409 };
+        }
+
         this.records.set(record.id, cloneRecord(record));
       },
     };
@@ -196,6 +255,13 @@ class FakeCosmosContainer {
         }
 
         this.records.delete(id);
+      },
+      replace: async (record, options) => {
+        this.replacedRecords.push({
+          record: cloneRecord(record),
+          options: cloneRecord(options),
+        });
+        this.records.set(id, cloneRecord(record));
       },
     };
   }

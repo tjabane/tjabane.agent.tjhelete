@@ -31,6 +31,9 @@ var appServicePlanName = '${namePrefix}-plan'
 var webAppName = '${namePrefix}-api-${resourceSuffix}'
 var keyVaultName = '${projectName}${environment}kv${resourceSuffix}'
 var cosmosAccountName = '${projectName}-${environment}-cosmos-${resourceSuffix}'
+var cosmosDatabaseName = 'tjabane'
+var sessionsContainerName = 'sessions'
+var inboundMessagesContainerName = 'inboundMessages'
 var logAnalyticsName = '${namePrefix}-logs'
 var applicationInsightsName = '${namePrefix}-ai'
 var keyVaultSecretsUserRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
@@ -111,6 +114,61 @@ resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
   }
 }
 
+// Cosmos DB child resources cannot own managed identities; access is secured on the account.
+resource cosmosDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-05-15' = { // NOSONAR
+  parent: cosmosAccount
+  name: cosmosDatabaseName
+  properties: {
+    resource: {
+      id: cosmosDatabaseName
+    }
+  }
+}
+
+// Cosmos DB child resources cannot own managed identities; access is secured on the account.
+resource sessionsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = { // NOSONAR
+  parent: cosmosDatabase
+  name: sessionsContainerName
+  properties: {
+    resource: {
+      id: sessionsContainerName
+      partitionKey: {
+        paths: [
+          '/id'
+        ]
+        kind: 'Hash'
+      }
+      uniqueKeyPolicy: {
+        uniqueKeys: [
+          {
+            paths: [
+              '/userId'
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
+
+// Cosmos DB child resources cannot own managed identities; access is secured on the account.
+resource inboundMessagesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = { // NOSONAR
+  parent: cosmosDatabase
+  name: inboundMessagesContainerName
+  properties: {
+    resource: {
+      id: inboundMessagesContainerName
+      partitionKey: {
+        paths: [
+          '/id'
+        ]
+        kind: 'Hash'
+      }
+      defaultTtl: 86400
+    }
+  }
+}
+
 resource appServicePlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: appServicePlanName
   location: location
@@ -154,6 +212,23 @@ resource webAppSettings 'Microsoft.Web/sites/config@2024-04-01' = {
     APPLICATIONINSIGHTS_CONNECTION_STRING: applicationInsights.properties.ConnectionString
     APPLICATIONINSIGHTS_ROLE_NAME: '${projectName}-api'
     NODE_ENV: environment
+    APP_TIMEZONE: 'Africa/Johannesburg'
+    MAX_AGENT_TOOL_TURNS: '3'
+    TWILIO_PUBLIC_WEBHOOK_URL: 'https://${webApp.properties.defaultHostName}/webhooks/twilio/'
+    TWILIO_AUTH_TOKEN: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/twilio-auth-token)'
+    TWILIO_ALLOWED_WHATSAPP_SENDER: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/twilio-allowed-whatsapp-sender)'
+    APP_INTERNAL_USER_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/app-internal-user-id)'
+    OPENAI_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/openai-api-key)'
+    OPENAI_MODEL: 'gpt-5.6-sol'
+    COSMOS_ENDPOINT: cosmosAccount.properties.documentEndpoint
+    COSMOS_DATABASE_NAME: cosmosDatabaseName
+    COSMOS_SESSIONS_CONTAINER: sessionsContainerName
+    COSMOS_INBOUND_MESSAGES_CONTAINER: inboundMessagesContainerName
+    INVESTEC_BASE_URL: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/investec-base-url)'
+    INVESTEC_TOKEN_URL: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/investec-token-url)'
+    INVESTEC_CLIENT_ID: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/investec-client-id)'
+    INVESTEC_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/investec-client-secret)'
+    INVESTEC_API_KEY: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/investec-api-key)'
     WEBSITE_HEALTHCHECK_MAXPINGFAILURES: '3'
   }
 }

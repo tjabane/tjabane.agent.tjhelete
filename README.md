@@ -30,4 +30,24 @@ The MVP does not move money, make payments, change banking details, or give regu
 
 ## Current Status
 
-This repository currently contains planning and specification documents for the product and technical direction.
+The synchronous private-user MVP now includes:
+
+- a signed and validated Twilio WhatsApp webhook;
+- idempotent inbound-message processing and per-user serialization;
+- Cosmos-backed session history with optimistic concurrency;
+- an OpenAI Responses API model adapter;
+- validated read-only Investec account, balance, and transaction tools; and
+- an Azure composition root and Bicep resources for the API, Cosmos containers,
+  Key Vault references, and operational telemetry.
+
+Copy `.env.example` to `.env`, replace every placeholder, and run:
+
+```powershell
+npm install
+npm test
+npm run dev:api
+```
+
+The configured `TWILIO_PUBLIC_WEBHOOK_URL` must exactly match the public URL
+registered with Twilio, including its path and trailing slash, because it is
+part of signature verification.

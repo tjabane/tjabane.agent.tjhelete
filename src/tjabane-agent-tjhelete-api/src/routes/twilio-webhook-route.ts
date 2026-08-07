@@ -1,6 +1,12 @@
-import { Router } from "express";
-import { twilioWebhookHandler } from "../handlers/twilio-webhook-handler";
+import { Router, type RequestHandler } from "express";
 
-export const twilioWebhookRouter = Router();
+export function createTwilioWebhookRouter(
+  handler: RequestHandler,
+  verifySignature: RequestHandler,
+): Router {
+  const router = Router();
 
-twilioWebhookRouter.post("/", twilioWebhookHandler);
+  router.post("/", verifySignature, handler);
+
+  return router;
+}

@@ -16,6 +16,7 @@
     "typescript": "7.0.2"
   },
   "dependencies": {
-    "@azure/cosmos": "^4.10.0"
+    "@azure/cosmos": "^4.10.0",
+    "@tjabane-agent-tjhelete/agent": "0.1.0"
   }
 }

@@ -1,10 +1,19 @@
 import "dotenv/config";
-import { createApp } from "./app";
+import { createApplication } from "./composition/create-application";
 import { loadAppConfig } from "./config/app-config";
 
-const config = loadAppConfig();
-const app = createApp();
+const application = createApplication(loadAppConfig());
 
-app.listen(config.port, () => {
-  console.log(`API listening on port ${config.port} in ${config.nodeEnv} mode`);
+const server = application.app.listen(application.config.port, () => {
+  console.log(
+    `API listening on port ${application.config.port} in ${application.config.nodeEnv} mode`,
+  );
 });
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    server.close(() => {
+      void application.dispose().finally(() => process.exit(0));
+    });
+  });
+}

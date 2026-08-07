@@ -4,14 +4,12 @@ import type {
   DatabaseQuery,
   DatabaseRecord,
 } from "../contracts/database-client.js";
+import { DatabaseConcurrencyError } from "../errors/database-concurrency-error.js";
 
 export type CosmosPartitionKeyValue = string | number | boolean | null;
 
 export interface CosmosDatabaseClientOptions {
-  readonly partitionKeyValueForId?: (
-    collectionName: string,
-    id: string,
-  ) => CosmosPartitionKeyValue;
+  readonly partitionKeyValueForId?: (collectionName: string, id: string) => CosmosPartitionKeyValue;
 }
 
 export class CosmosDatabaseClient implements DatabaseClient {
@@ -30,9 +28,9 @@ export class CosmosDatabaseClient implements DatabaseClient {
         .item(id, this.getPartitionKeyValue(collectionName, id))
         .read<TRecord>();
 
-      return response.resource ?? null;
+      return response.resource === undefined ? null : this.mapStoredRecord(response.resource);
     } catch (error) {
-      if (this.isNotFoundError(error)) {
+      if (this.hasStatus(error, 404)) {
         return null;
       }
 
@@ -48,14 +46,55 @@ export class CosmosDatabaseClient implements DatabaseClient {
       .items.query<TRecord>(this.createFindOneQuery(query))
       .fetchAll();
 
-    return response.resources[0] ?? null;
+    const record = response.resources[0];
+
+    return record === undefined ? null : this.mapStoredRecord(record);
+  }
+
+  public async create<TRecord extends DatabaseRecord>(
+    collectionName: string,
+    record: TRecord,
+  ): Promise<boolean> {
+    try {
+      await this.getContainer(collectionName).items.create(this.toStoredRecord(record));
+      return true;
+    } catch (error) {
+      if (this.hasStatus(error, 409)) {
+        return false;
+      }
+
+      throw error;
+    }
   }
 
   public async save<TRecord extends DatabaseRecord>(
     collectionName: string,
     record: TRecord,
+    expectedVersion?: string,
   ): Promise<void> {
-    await this.getContainer(collectionName).items.upsert(record);
+    const storedRecord = this.toStoredRecord(record);
+
+    if (expectedVersion === undefined) {
+      await this.getContainer(collectionName).items.upsert(storedRecord);
+      return;
+    }
+
+    try {
+      await this.getContainer(collectionName)
+        .item(record.id, this.getPartitionKeyValue(collectionName, record.id))
+        .replace(storedRecord, {
+          accessCondition: {
+            type: "IfMatch",
+            condition: expectedVersion,
+          },
+        });
+    } catch (error) {
+      if (this.hasStatus(error, 412)) {
+        throw new DatabaseConcurrencyError();
+      }
+
+      throw error;
+    }
   }
 
   public async delete(collectionName: string, id: string): Promise<void> {
@@ -64,7 +103,7 @@ export class CosmosDatabaseClient implements DatabaseClient {
         .item(id, this.getPartitionKeyValue(collectionName, id))
         .delete();
     } catch (error) {
-      if (this.isNotFoundError(error)) {
+      if (this.hasStatus(error, 404)) {
         return;
       }
 
@@ -73,15 +112,10 @@ export class CosmosDatabaseClient implements DatabaseClient {
   }
 
   private getContainer(collectionName: string): Container {
-    return this.cosmosClient
-      .database(this.databaseName)
-      .container(collectionName);
+    return this.cosmosClient.database(this.databaseName).container(collectionName);
   }
 
-  private getPartitionKeyValue(
-    collectionName: string,
-    id: string,
-  ): CosmosPartitionKeyValue {
+  private getPartitionKeyValue(collectionName: string, id: string): CosmosPartitionKeyValue {
     return this.options.partitionKeyValueForId?.(collectionName, id) ?? id;
   }
 
@@ -94,10 +128,7 @@ export class CosmosDatabaseClient implements DatabaseClient {
 
     return {
       query: `SELECT TOP 1 * FROM c WHERE ${queryEntries
-        .map(
-          ([fieldName], index) =>
-            `${this.formatFieldName(fieldName)} = @value${index}`,
-        )
+        .map(([fieldName], index) => `${this.formatFieldName(fieldName)} = @value${index}`)
         .join(" AND ")}`,
       parameters: queryEntries.map(([, value], index) => ({
         name: `@value${index}`,
@@ -114,11 +145,30 @@ export class CosmosDatabaseClient implements DatabaseClient {
     return `c.${fieldName}`;
   }
 
-  private isNotFoundError(error: unknown): boolean {
+  private mapStoredRecord<TRecord extends DatabaseRecord>(
+    record: TRecord & { readonly _etag?: string },
+  ): TRecord {
+    const { _etag, version: _version, ...data } = record;
+
+    return {
+      ...data,
+      ...(_etag === undefined ? {} : { version: _etag }),
+    } as TRecord;
+  }
+
+  private toStoredRecord<TRecord extends DatabaseRecord>(
+    record: TRecord,
+  ): Omit<TRecord, "version"> {
+    const { version: _version, ...storedRecord } = record;
+
+    return storedRecord;
+  }
+
+  private hasStatus(error: unknown, expectedStatus: number): boolean {
     return (
       this.isObject(error) &&
       ("code" in error || "statusCode" in error) &&
-      (error.code === 404 || error.statusCode === 404)
+      (error.code === expectedStatus || error.statusCode === expectedStatus)
     );
   }
 

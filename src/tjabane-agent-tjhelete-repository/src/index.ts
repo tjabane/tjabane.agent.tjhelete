@@ -20,3 +20,4 @@ export { SessionRepository } from "./repositories/session-repository.js";
 export type { IRepository } from "./contracts/repository.js";
 export type { ISessionRepository } from "./contracts/session-repository.js";
 export type { Session } from "./entities/session.js";
+export { DatabaseConcurrencyError } from "./errors/database-concurrency-error.js";
