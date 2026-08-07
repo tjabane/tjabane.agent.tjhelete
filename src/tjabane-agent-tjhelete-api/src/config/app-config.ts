@@ -137,7 +137,7 @@ function parseUrl(value: string, settingName: string): URL {
     const url = new URL(value);
 
     if (url.protocol !== "https:" && url.protocol !== "http:") {
-      throw new Error();
+      throw new Error("URL must use HTTP or HTTPS.");
     }
 
     return url;
@@ -147,7 +147,7 @@ function parseUrl(value: string, settingName: string): URL {
 }
 
 function parseWhatsAppAddress(value: string, settingName: string): string {
-  if (!/^whatsapp:\+[1-9][0-9]{7,14}$/.test(value)) {
+  if (!/^whatsapp:\+[1-9]\d{7,14}$/.test(value)) {
     throw new Error(`Invalid ${settingName} value.`);
   }
 

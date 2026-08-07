@@ -8,7 +8,7 @@ type TwilioMessageWebhookBody = {
   MessageSid?: string;
 };
 
-const whatsappAddressPattern = /^whatsapp:\+[1-9][0-9]{7,14}$/;
+const whatsappAddressPattern = /^whatsapp:\+[1-9]\d{7,14}$/;
 const messageSidPattern = /^SM[A-Za-z0-9]{3,64}$/;
 
 export function createTwilioWebhookHandler(inboundMessages: InboundMessageService): RequestHandler {

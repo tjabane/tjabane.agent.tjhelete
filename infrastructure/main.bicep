@@ -114,7 +114,8 @@ resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
   }
 }
 
-resource cosmosDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-05-15' = {
+// Cosmos DB child resources cannot own managed identities; access is secured on the account.
+resource cosmosDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-05-15' = { // NOSONAR
   parent: cosmosAccount
   name: cosmosDatabaseName
   properties: {
@@ -124,7 +125,8 @@ resource cosmosDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024
   }
 }
 
-resource sessionsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+// Cosmos DB child resources cannot own managed identities; access is secured on the account.
+resource sessionsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = { // NOSONAR
   parent: cosmosDatabase
   name: sessionsContainerName
   properties: {
@@ -149,7 +151,8 @@ resource sessionsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/c
   }
 }
 
-resource inboundMessagesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+// Cosmos DB child resources cannot own managed identities; access is secured on the account.
+resource inboundMessagesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = { // NOSONAR
   parent: cosmosDatabase
   name: inboundMessagesContainerName
   properties: {

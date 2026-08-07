@@ -14,6 +14,11 @@ import {
 
 type OpenAiInputItem = Readonly<Record<string, unknown>>;
 
+interface DecodedOutputItem {
+  readonly textParts: readonly string[];
+  readonly toolCalls: readonly ModelToolCall[];
+}
+
 export interface OpenAiResponsesModelClientOptions {
   readonly endpoint?: URL;
   readonly timeoutMs?: number;
@@ -120,49 +125,54 @@ function decodeModelTurn(body: unknown): ModelTurn {
     throw new ModelProviderResponseValidationError();
   }
 
-  const textParts: string[] = [];
-  const toolCalls: ModelToolCall[] = [];
-
-  for (const rawItem of response.output) {
-    const item = readObject(rawItem);
-
-    if (item.type === "message") {
-      if (!Array.isArray(item.content)) {
-        throw new ModelProviderResponseValidationError();
-      }
-
-      for (const rawContent of item.content) {
-        const content = readObject(rawContent);
-
-        if (content.type === "output_text") {
-          textParts.push(readString(content.text));
-        }
-      }
-    } else if (item.type === "function_call") {
-      const argumentsText = readString(item.arguments);
-      let arguments_: unknown;
-
-      try {
-        arguments_ = JSON.parse(argumentsText) as unknown;
-      } catch {
-        throw new ModelProviderResponseValidationError();
-      }
-
-      toolCalls.push({
-        id: readString(item.call_id),
-        name: readString(item.name),
-        arguments: arguments_,
-      });
-    }
-  }
-
-  const text = textParts.join("");
+  const decodedItems = response.output.map(decodeOutputItem);
+  const text = decodedItems.flatMap((item) => item.textParts).join("");
+  const toolCalls = decodedItems.flatMap((item) => item.toolCalls);
 
   if (text.length === 0 && toolCalls.length === 0) {
     throw new ModelProviderResponseValidationError();
   }
 
   return { text, toolCalls };
+}
+
+function decodeOutputItem(value: unknown): DecodedOutputItem {
+  const item = readObject(value);
+
+  if (item.type === "message") {
+    return { textParts: decodeMessageContent(item.content), toolCalls: [] };
+  }
+
+  if (item.type === "function_call") {
+    return { textParts: [], toolCalls: [decodeToolCall(item)] };
+  }
+
+  return { textParts: [], toolCalls: [] };
+}
+
+function decodeMessageContent(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) {
+    throw new ModelProviderResponseValidationError();
+  }
+
+  return value.flatMap((rawContent) => {
+    const content = readObject(rawContent);
+    return content.type === "output_text" ? [readString(content.text)] : [];
+  });
+}
+
+function decodeToolCall(item: Record<string, unknown>): ModelToolCall {
+  const argumentsText = readString(item.arguments);
+
+  try {
+    return {
+      id: readString(item.call_id),
+      name: readString(item.name),
+      arguments: JSON.parse(argumentsText) as unknown,
+    };
+  } catch {
+    throw new ModelProviderResponseValidationError();
+  }
 }
 
 function readObject(value: unknown): Record<string, unknown> {

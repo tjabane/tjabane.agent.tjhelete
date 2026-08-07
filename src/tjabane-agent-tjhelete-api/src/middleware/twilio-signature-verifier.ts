@@ -33,7 +33,7 @@ function isValidSignature(
   suppliedSignature: string,
 ): boolean {
   const data = Object.keys(form)
-    .sort()
+    .sort((left, right) => left.localeCompare(right))
     .reduce((value, key) => `${value}${key}${form[key]}`, url);
   const expectedSignature = createHmac("sha1", authToken).update(data, "utf8").digest("base64");
   const supplied = Buffer.from(suppliedSignature, "utf8");
